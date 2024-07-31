@@ -173,6 +173,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/trusted-types@npm:^2.0.2":
+  version: 2.0.7
+  resolution: "@types/trusted-types@npm:2.0.7"
+  checksum: 10c0/4c4855f10de7c6c135e0d32ce462419d8abbbc33713b31d294596c0cc34ae1fa6112a2f9da729c8f7a20707782b0d69da3b1f8df6645b0366d08825ca1522e0c
+  languageName: node
+  linkType: hard
+
 "capsium@workspace:.":
   version: 0.0.0-use.local
   resolution: "capsium@workspace:."
@@ -271,6 +278,9 @@ __metadata:
   dependencies:
     esbuild: "npm:^0.23.0"
     typescript: "npm:^5.5.4"
+    workbox-routing: "npm:^7.1.0"
+    workbox-strategies: "npm:^7.1.0"
+    workbox-window: "npm:^7.1.0"
   languageName: unknown
   linkType: soft
 
@@ -331,5 +341,40 @@ __metadata:
   version: 3.17.5
   resolution: "vscode-languageserver-types@npm:3.17.5"
   checksum: 10c0/1e1260de79a2cc8de3e46f2e0182cdc94a7eddab487db5a3bd4ee716f67728e685852707d72c059721ce500447be9a46764a04f0611e94e4321ffa088eef36f8
+  languageName: node
+  linkType: hard
+
+"workbox-core@npm:7.1.0":
+  version: 7.1.0
+  resolution: "workbox-core@npm:7.1.0"
+  checksum: 10c0/fb0b6e23a52e085da00b7a74b1f1854f06c695eb2bd4c244aa335165f59156a4febb4f116b9893b9fb7e0e8bac092d32eecceb4d00f930a93f64737cb2be9531
+  languageName: node
+  linkType: hard
+
+"workbox-routing@npm:^7.1.0":
+  version: 7.1.0
+  resolution: "workbox-routing@npm:7.1.0"
+  dependencies:
+    workbox-core: "npm:7.1.0"
+  checksum: 10c0/efd630fff594bd50276770840bce274660972587e79c097a9f1a84e8347351736aac13f11c6d7655ff550b13195d370d5c3b81a075bf452f358fc144ee868ad9
+  languageName: node
+  linkType: hard
+
+"workbox-strategies@npm:^7.1.0":
+  version: 7.1.0
+  resolution: "workbox-strategies@npm:7.1.0"
+  dependencies:
+    workbox-core: "npm:7.1.0"
+  checksum: 10c0/b08712a69b1b13e354345cc228c29f0c759043f7ca7cf6ce9b82fe79c9d423142bfa4a118f91f1a57054047a730127fa4474d59d9306fb2ed42fe9ef568be01a
+  languageName: node
+  linkType: hard
+
+"workbox-window@npm:^7.1.0":
+  version: 7.1.0
+  resolution: "workbox-window@npm:7.1.0"
+  dependencies:
+    "@types/trusted-types": "npm:^2.0.2"
+    workbox-core: "npm:7.1.0"
+  checksum: 10c0/c989a6e3a0488f049eead3892f8249387604fb04898aa79d0cf14cd7b684f0758f1edf1996745f4755bd30c31c449f628803e507d39b2ea91cc9c36f7d5e9c72
   languageName: node
   linkType: hard

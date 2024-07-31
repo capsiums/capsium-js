@@ -14,5 +14,10 @@
   "devDependencies": {
     "esbuild": "^0.23.0",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "workbox-routing": "^7.1.0",
+    "workbox-strategies": "^7.1.0",
+    "workbox-window": "^7.1.0"
   }
 }

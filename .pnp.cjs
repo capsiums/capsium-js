@@ -254,6 +254,15 @@ const RAW_RUNTIME_STATE =
         "linkType": "HARD"\
       }]\
     ]],\
+    ["@types/trusted-types", [\
+      ["npm:2.0.7", {\
+        "packageLocation": "../../../Users/anileated/.yarn/berry/cache/@types-trusted-types-npm-2.0.7-a07fc44f59-10c0.zip/node_modules/@types/trusted-types/",\
+        "packageDependencies": [\
+          ["@types/trusted-types", "npm:2.0.7"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
     ["capsium", [\
       ["workspace:.", {\
         "packageLocation": "./",\
@@ -304,7 +313,10 @@ const RAW_RUNTIME_STATE =
         "packageDependencies": [\
           ["swsws", "workspace:packages/swsws"],\
           ["esbuild", "npm:0.23.0"],\
-          ["typescript", "patch:typescript@npm%3A5.5.4#optional!builtin<compat/typescript>::version=5.5.4&hash=379a07"]\
+          ["typescript", "patch:typescript@npm%3A5.5.4#optional!builtin<compat/typescript>::version=5.5.4&hash=379a07"],\
+          ["workbox-routing", "npm:7.1.0"],\
+          ["workbox-strategies", "npm:7.1.0"],\
+          ["workbox-window", "npm:7.1.0"]\
         ],\
         "linkType": "SOFT"\
       }]\
@@ -361,6 +373,46 @@ const RAW_RUNTIME_STATE =
         "packageLocation": "../../../Users/anileated/.yarn/berry/cache/vscode-languageserver-types-npm-3.17.5-aca3b71a5a-10c0.zip/node_modules/vscode-languageserver-types/",\
         "packageDependencies": [\
           ["vscode-languageserver-types", "npm:3.17.5"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
+    ["workbox-core", [\
+      ["npm:7.1.0", {\
+        "packageLocation": "../../../Users/anileated/.yarn/berry/cache/workbox-core-npm-7.1.0-2fe6da9059-10c0.zip/node_modules/workbox-core/",\
+        "packageDependencies": [\
+          ["workbox-core", "npm:7.1.0"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
+    ["workbox-routing", [\
+      ["npm:7.1.0", {\
+        "packageLocation": "../../../Users/anileated/.yarn/berry/cache/workbox-routing-npm-7.1.0-7fb2b056c5-10c0.zip/node_modules/workbox-routing/",\
+        "packageDependencies": [\
+          ["workbox-routing", "npm:7.1.0"],\
+          ["workbox-core", "npm:7.1.0"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
+    ["workbox-strategies", [\
+      ["npm:7.1.0", {\
+        "packageLocation": "../../../Users/anileated/.yarn/berry/cache/workbox-strategies-npm-7.1.0-1962eb0d59-10c0.zip/node_modules/workbox-strategies/",\
+        "packageDependencies": [\
+          ["workbox-strategies", "npm:7.1.0"],\
+          ["workbox-core", "npm:7.1.0"]\
+        ],\
+        "linkType": "HARD"\
+      }]\
+    ]],\
+    ["workbox-window", [\
+      ["npm:7.1.0", {\
+        "packageLocation": "../../../Users/anileated/.yarn/berry/cache/workbox-window-npm-7.1.0-6c9a58e6fd-10c0.zip/node_modules/workbox-window/",\
+        "packageDependencies": [\
+          ["workbox-window", "npm:7.1.0"],\
+          ["@types/trusted-types", "npm:2.0.7"],\
+          ["workbox-core", "npm:7.1.0"]\
         ],\
         "linkType": "HARD"\
       }]\
