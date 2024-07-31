@@ -1,0 +1,18 @@
+{
+  "name": "swsws",
+  "description": "Service worker static website server",
+  "private": true,
+  "packageManager": "yarn@4.3.1",
+  "scripts": {
+    "compile": "tsc --outdir compiled; tsc --noEmit --module nodenext --skipLibCheck build.mts",
+    "clean": "rm -rf dist compiled build.mjs dist.mjs build-site-builder.mjs build-site.mjs",
+    "build-self-builder": "yarn esbuild build.mts --packages=external --platform=node --target=node18 --minify=false --bundle --format=esm --outfile=build.mjs",
+    "build-self": "yarn node build.mjs",
+    "clean-build": "yarn clean && yarn compile; yarn build",
+    "build": "yarn build-self-builder && yarn build-self"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.4"
+  }
+}

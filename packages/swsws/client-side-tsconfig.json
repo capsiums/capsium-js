@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["index.tsx", "../../*.d.ts"],
+  "compilerOptions": {
+    "module": "commonjs",
+    "ignoreDeprecations": "5.0",
+    "suppressExcessPropertyErrors": true, // necessary because some of our React components don’t declare children
+    "verbatimModuleSyntax": false
+  }
+}
