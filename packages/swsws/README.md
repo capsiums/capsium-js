@@ -3,6 +3,8 @@
 The browser Capsium reactor (`@capsium/swsws`): a dependency-light, hand-rolled
 service worker that serves `.cap` packages straight from the zip.
 
+> **Status: 0.2.0 — private/unpublished** (workspace-only package).
+
 - Accepts a `.cap` blob from the page via `postMessage`, verifies SHA-256
   checksums against `security.json` (WebCrypto) and rejects tampered packages.
 - Persists the verified blob in the Cache API and serves requests per
@@ -13,6 +15,9 @@ service worker that serves `.cap` packages straight from the zip.
   RSASSA-PKCS1-v1_5) when `security.json` declares them and rejects
   packages whose signature does not verify.
 - Executes JS handler routes (§4a) as ES modules — see below.
+- Serves §5a layered storage (top → bottom, `.capsium-tombstones` → 404).
+- Serves §4a composite packages (dependency resources + route inheritance).
+- Gates routes with §4b authentication (basicAuth / OAuth2 PKCE).
 
 ## Handler routes (§4a)
 
@@ -47,12 +52,67 @@ e.g. `script-src 'self' blob:; connect-src 'self'`, to constrain module
 loading and exfiltration. Handler modules are imported from in-memory
 blob: URLs only — never from the network.
 
+## Layered storage (§5a)
+
+Packages with `storage.layers` serve a merged view: layers are
+package-relative directories mirroring the package tree, resolved **top →
+bottom** (first hit wins); packages without a `layers` config behave as a
+single implicit root layer. Deletions recorded in a layer's
+`.capsium-tombstones` file (JSON array of merged-view paths) answer `404`
+even when a lower layer still has the file. `visibility: private` layers
+are served to the package itself but never exposed to dependent packages.
+
+## Composite packages (§4a)
+
+A package with `metadata.dependencies` (guid → semver range) can inherit
+dependency content. The browser reactor has no store directory, so the
+dependency `.cap` blobs are **supplied explicitly alongside the main
+package** (e.g. the page's multi-file picker posts them with the install
+message); they are verified and persisted like the main package.
+
+- Resource routes may reference dependencies:
+  `{ "path": "/vendor/app.js", "resource": "capsium://<guid>/content/app.js" }`.
+  Only `exported` manifest resources are visible — referencing a
+  dependency's `private` resource is rejected with a clear 404.
+- Route inheritance attributes are honored at serve time: `remap`
+  (the route is served at the remapped path), `responseRewrite`
+  (`body` replacement, `headers` override), additive `responseHeaders`
+  (never override), and `requestHeaders` (supplanted before forwarding
+  to an inherited handler).
+
+## Authentication (§4b)
+
+`authentication.json` gates package routes (the introspection API stays
+open):
+
+- **basicAuth** — `401` + `WWW-Authenticate` challenge; the package's
+  htpasswd file is verified in pure TS. Supported hash types: **bcrypt**
+  (`$2a$`/`$2b$`/`$2y$`) and **apr1-MD5** (`$apr1$`). Anything else
+  (sha-crypt, plaintext, ...) answers `501` with a precise body, as does
+  a missing `passwdFile`.
+- **oauth2** — browser-native authorization-code + **PKCE** (S256) flow.
+  Provider config (clientId, authorization/token/userinfo URLs,
+  `redirectPath`, scopes) comes from the package; the session-cookie
+  signing secret comes from a **deploy-time config message** (`{type:
+  'deploy-config', config: {sessionSecret}}`) — never from the package.
+  OAuth2 without the deploy secret answers `501`. Sessions are
+  HMAC-SHA256-signed cookies; PKCE pending state lives in memory, so a
+  worker restart mid-login restarts the flow.
+- Route-level `accessControl` on dataset routes is enforced after
+  authentication (`401` unauthenticated, `403` unauthorized). htpasswd
+  has no roles, so basic-auth principals are role-less; roles come from
+  the OAuth2 userinfo profile.
+
 ## Files
 
 - `src/sw.ts` — service worker entry (built to `dist/sw.js` as an IIFE).
-- `src/resolver.ts` — pure routes.json path resolution (unit-tested).
+- `src/resolver.ts` — pure routes.json path+method resolution (unit-tested).
 - `src/fetch-handler.ts` — request pipeline (unit-tested with a mocked store).
-- `src/package-store.ts` — verification + Cache-API persistence.
+- `src/handler-executor.ts` — §4a ES-module handler execution.
+- `src/package-store.ts` — verification + Cache-API persistence (incl.
+  composite dependencies).
+- `src/auth/` — §4b: htpasswd (pure-TS MD5/apr1 + bcryptjs), PKCE flow,
+  signed session cookies, the authentication gate.
 - `index.html` — demo page with a `.cap` file picker.
 
 ## Try it
