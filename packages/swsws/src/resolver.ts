@@ -7,6 +7,7 @@
  * `method-not-allowed` with the allowed methods.
  */
 import {
+  effectiveRoutePath,
   isDatasetRoute,
   isHandlerRoute,
   isResourceRoute,
@@ -32,12 +33,15 @@ export class RouteResolver {
     const byPath = new Map<string, Route>();
     const handlersByPath = new Map<string, HandlerRoute[]>();
     for (const route of routes.routes) {
+      // §4a route inheritance: a route with `remap` is served at the
+      // remapped path.
+      const servedPath = effectiveRoutePath(route);
       if (isHandlerRoute(route)) {
-        const handlers = handlersByPath.get(route.path) ?? [];
+        const handlers = handlersByPath.get(servedPath) ?? [];
         handlers.push(route);
-        handlersByPath.set(route.path, handlers);
-      } else if (!byPath.has(route.path)) {
-        byPath.set(route.path, route);
+        handlersByPath.set(servedPath, handlers);
+      } else if (!byPath.has(servedPath)) {
+        byPath.set(servedPath, route);
       }
     }
     this.byPath = byPath;
