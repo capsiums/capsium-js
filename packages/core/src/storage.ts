@@ -1,5 +1,6 @@
 /**
- * storage.json model (ARCHITECTURE.md §5) — dataset declarations.
+ * storage.json model (ARCHITECTURE.md §5) — dataset declarations and
+ * layered storage (§5a).
  *
  * Dataset kinds (discriminated by key, open/closed via union):
  * - schema-backed file: `{source, schemaFile?, schemaType?}` (JSON/YAML/CSV/TSV).
@@ -7,10 +8,15 @@
  *
  * Legacy-read normalization: the old gem emitted
  * `{"datasets": [{"name", "source", "format", "schema"}]}`; readers accept it
- * and normalize to `{storage: {dataSets: {<name>: ...}}}`. Layered storage
- * (`layers`) is parsed if present but has no behavior yet.
+ * and normalize to `{storage: {dataSets: {<name>: ...}}}`.
+ *
+ * §5a layered storage: `storage.layers` (array, bottom → top) of
+ * `{path, writable?, visibility?}`; each layer is a package-relative
+ * directory mirroring the package tree. Overlay resolution lives in
+ * `layers.ts`.
  */
 import { z } from 'zod';
+import { resourceVisibilitySchema } from './manifest.js';
 
 export const schemaFileDatasetSchema = z.object({
   source: z.string().min(1),
@@ -28,14 +34,33 @@ export type SqliteDataset = z.infer<typeof sqliteDatasetSchema>;
 export const datasetSchema = z.union([schemaFileDatasetSchema, sqliteDatasetSchema]);
 export type Dataset = z.infer<typeof datasetSchema>;
 
+/** One storage layer (§5a). Layers stack bottom → top; default read-only, exported. */
+export const storageLayerSchema = z.object({
+  /** Package-relative directory mirroring the package tree (e.g. `base`). */
+  path: z.string().min(1),
+  writable: z.boolean().optional(),
+  visibility: resourceVisibilitySchema.optional(),
+});
+export type StorageLayer = z.infer<typeof storageLayerSchema>;
+
 export const storageSchema = z.object({
-  storage: z.object({
-    dataSets: z.record(z.string(), datasetSchema),
-    /** Layered storage (overlay FS): parsed, no behavior yet. */
-    layers: z.array(z.unknown()).optional(),
+  storage: z.strictObject({
+    dataSets: z.record(z.string(), datasetSchema).default({}),
+    /** Layered storage (overlay FS), bottom → top. */
+    layers: z.array(storageLayerSchema).optional(),
   }),
 });
 export type Storage = z.infer<typeof storageSchema>;
+
+/** Layer writability (default false — layers are read-only). */
+export function layerWritable(layer: StorageLayer): boolean {
+  return layer.writable ?? false;
+}
+
+/** Layer visibility (default `exported`). */
+export function layerVisibility(layer: StorageLayer): 'exported' | 'private' {
+  return layer.visibility ?? 'exported';
+}
 
 export function isSchemaFileDataset(dataset: Dataset): dataset is SchemaFileDataset {
   return 'source' in dataset;
