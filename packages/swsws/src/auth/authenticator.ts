@@ -236,6 +236,7 @@ export class Authenticator {
       ...(this.options.pendingTtlMs !== undefined
         ? { pendingTtlMs: this.options.pendingTtlMs }
         : {}),
+      ...(this.options.scopePrefix !== undefined ? { scopePrefix: this.options.scopePrefix } : {}),
     });
     return this.flow;
   }

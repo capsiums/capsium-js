@@ -5,6 +5,10 @@
  *   checksums against security.json (§6), and persists it in the Cache API.
  * - Resolves fetch requests per routes.json (§4), serving bytes from the zip.
  * - Answers the §7 introspection endpoints under /api/v1/introspect/.
+ *
+ * Registered at a non-root scope (e.g. /playground/~serve/), package routes
+ * are served relative to the scope's pathname prefix and requests outside
+ * the scope are never answered; at root scope behavior is unchanged.
  */
 /// <reference lib="webworker" />
 import {
@@ -16,6 +20,7 @@ import {
 import { WebCryptoHashProvider } from './webcrypto-hash-provider.js';
 import { WebCryptoSignatureProvider } from './webcrypto-signature-provider.js';
 import { handleRequest } from './fetch-handler.js';
+import { stripScopePrefix } from './scope.js';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -23,6 +28,9 @@ const CACHE_NAME = 'capsium-swsws';
 
 /** Paths always served from the network (the demo page and this script). */
 const PASSTHROUGH_PATHS: ReadonlySet<string> = new Set(['/sw.js', '/index.html']);
+
+/** The pathname prefix this worker is registered under ('/' at root scope). */
+const SCOPE_PREFIX = new URL(self.registration.scope).pathname;
 
 let storePromise: Promise<PackageStore> | undefined;
 
@@ -108,13 +116,21 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || PASSTHROUGH_PATHS.has(url.pathname)) {
     return;
   }
+  const pathname = stripScopePrefix(url.pathname, SCOPE_PREFIX);
+  if (pathname === null) {
+    // Outside the registration scope: never this worker's to serve.
+    return;
+  }
   event.respondWith(
     (async () => {
       const store = await getStore();
-      if (store.current === undefined && !url.pathname.startsWith('/api/v1/')) {
+      if (store.current === undefined && !pathname.startsWith('/api/v1/')) {
         return fetch(event.request);
       }
-      return await handleRequest(event.request, store, { deployConfig });
+      return await handleRequest(event.request, store, {
+        deployConfig,
+        scopePrefix: SCOPE_PREFIX,
+      });
     })(),
   );
 });
