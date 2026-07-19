@@ -17,3 +17,4 @@ export * from './composite.js';
 export * from './generate/manifest.js';
 export * from './generate/routes.js';
 export * from './package.js';
+export * from './testing.js';
