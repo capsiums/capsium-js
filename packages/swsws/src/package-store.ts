@@ -8,13 +8,17 @@
  */
 import { unzipSync } from 'fflate';
 import {
+  assertPackageSignature,
+  isPackageSigned,
   parsePackage,
   verifyIntegrity,
   CapsiumError,
+  SignatureError,
   type CapsiumPackage,
   type HashProvider,
   type IntegrityIssue,
   type IntegrityReport,
+  type SignatureProvider,
 } from '@capsium/core';
 
 export class PackageIntegrityError extends CapsiumError {
@@ -22,6 +26,9 @@ export class PackageIntegrityError extends CapsiumError {
     super(`package integrity verification failed: ${issues.map((issue) => issue.kind).join(', ')}`);
   }
 }
+
+/** The declared §6a digital signature could not be verified at install time. */
+export class PackageSignatureError extends CapsiumError {}
 
 /** Minimal blob persistence so tests can substitute an in-memory fake. */
 export interface KeyValueBlobCache {
@@ -76,6 +83,7 @@ export class PackageStore {
   constructor(
     private readonly blobs: KeyValueBlobCache,
     private readonly hashProvider: HashProvider,
+    private readonly signatureProvider?: SignatureProvider,
   ) {}
 
   get current(): InstalledPackage | undefined {
@@ -121,7 +129,27 @@ export class PackageStore {
     const validity = model.security
       ? await verifyIntegrity(model.files, model.security, this.hashProvider)
       : { valid: true, checkedAt: new Date().toISOString(), issues: [] };
+    if (model.security !== undefined && isPackageSigned(model.security)) {
+      await this.verifySignature(model);
+    }
     const contentHash = await this.hashProvider.digestHex(capBytes);
     return { model, contentHash, validity };
+  }
+
+  /** §6a gate: signed packages install only when the signature verifies. */
+  private async verifySignature(model: CapsiumPackage): Promise<void> {
+    if (model.security === undefined || this.signatureProvider === undefined) {
+      throw new PackageSignatureError(
+        'package declares digitalSignatures but no SignatureProvider is configured',
+      );
+    }
+    try {
+      await assertPackageSignature(model.files, model.security, this.signatureProvider);
+    } catch (error) {
+      if (error instanceof SignatureError) {
+        throw new PackageSignatureError(error.message, { cause: error });
+      }
+      throw error;
+    }
   }
 }
