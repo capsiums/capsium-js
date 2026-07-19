@@ -11,6 +11,7 @@ import {
   isJavaScriptHandlerPath,
   isSchemaFileDataset,
   mimeTypeForPath,
+  resolveLayeredPath,
   FALLBACK_MIME_TYPE,
   type CapsiumPackage,
   type ContentHashesResponse,
@@ -142,9 +143,18 @@ export async function handleRequest(
   }
 
   const resolution = new RouteResolver(installed.model.routes).resolve(pathname, request.method);
+  const { files, storage } = installed.model;
   switch (resolution.kind) {
     case 'resource': {
-      const bytes = installed.model.files.get(resolution.route.resource);
+      // §5a: resolve through the storage layers (top → bottom, tombstones 404).
+      const layered = resolveLayeredPath(files, storage, resolution.route.resource);
+      if (layered.kind === 'tombstoned') {
+        return textResponse(`resource deleted: ${resolution.route.resource}`, 404);
+      }
+      if (layered.kind === 'not-found') {
+        return textResponse(`resource missing from package: ${resolution.route.resource}`, 404);
+      }
+      const bytes = files.get(layered.path);
       if (bytes === undefined) {
         return textResponse(`resource missing from package: ${resolution.route.resource}`, 404);
       }
@@ -157,7 +167,7 @@ export async function handleRequest(
       return new Response(bytes as BodyInit, { status: 200, headers });
     }
     case 'dataset': {
-      const dataset = installed.model.storage?.storage.dataSets[resolution.route.dataset];
+      const dataset = storage?.storage.dataSets[resolution.route.dataset];
       if (dataset === undefined) {
         return textResponse(`unknown dataset: ${resolution.route.dataset}`, 404);
       }
@@ -165,7 +175,11 @@ export async function handleRequest(
         // SQLite querying is out of scope for the minimal browser reactor.
         return textResponse(`dataset kind not served by this reactor: ${resolution.route.dataset}`, 501);
       }
-      const bytes = installed.model.files.get(dataset.source);
+      const layered = resolveLayeredPath(files, storage, dataset.source);
+      if (layered.kind === 'tombstoned') {
+        return textResponse(`dataset source deleted: ${dataset.source}`, 404);
+      }
+      const bytes = layered.kind === 'found' ? files.get(layered.path) : undefined;
       if (bytes === undefined) {
         return textResponse(`dataset source missing from package: ${dataset.source}`, 404);
       }
