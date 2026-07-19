@@ -2,6 +2,7 @@ export * from './errors.js';
 export * from './metadata.js';
 export * from './manifest.js';
 export * from './routes.js';
+export * from './resolver.js';
 export * from './storage.js';
 export * from './layers.js';
 export * from './security.js';

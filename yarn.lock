@@ -14,13 +14,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@capsium/packager@workspace:packages/packager":
+"@capsium/packager@workspace:^, @capsium/packager@workspace:packages/packager":
   version: 0.0.0-use.local
   resolution: "@capsium/packager@workspace:packages/packager"
   dependencies:
     "@capsium/core": "workspace:^"
     fflate: "npm:^0.8.3"
     zod: "npm:^4.4.3"
+  languageName: unknown
+  linkType: soft
+
+"@capsium/reactor-node@workspace:packages/reactor-node":
+  version: 0.0.0-use.local
+  resolution: "@capsium/reactor-node@workspace:packages/reactor-node"
+  dependencies:
+    "@capsium/core": "workspace:^"
+    "@capsium/packager": "workspace:^"
+  bin:
+    capsium-reactor-node: dist/bin.js
   languageName: unknown
   linkType: soft
 

@@ -1,0 +1,46 @@
+{
+  "name": "@capsium/reactor-node",
+  "version": "0.2.0",
+  "description": "Framework-agnostic Node.js Capsium reactor: serves .cap packages over node:http or as Connect/Express middleware, with layered storage, composite resolution and the §7 introspection API.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/capsiums/capsium-js.git",
+    "directory": "packages/reactor-node"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "bin": {
+    "capsium-reactor-node": "dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capsium/core": "workspace:^",
+    "@capsium/packager": "workspace:^"
+  }
+}
