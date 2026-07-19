@@ -65,6 +65,16 @@ export function isHandlerRoute(route: Route): route is HandlerRoute {
   return 'handler' in route;
 }
 
+/**
+ * True when a handler path is JavaScript (`.js`/`.mjs`). Per §4a, JS
+ * handlers execute ONLY in JS-capable reactors (swsws/Node); non-JS
+ * handlers (e.g. `.lua`) must be answered 501 by reactors that cannot
+ * execute them.
+ */
+export function isJavaScriptHandlerPath(path: string): boolean {
+  return /\.m?js$/i.test(path);
+}
+
 const legacyRouteValueSchema = z.union([
   z.string().min(1).transform((resource) => ({ resource })),
   z.looseObject({}).transform((value) => value),

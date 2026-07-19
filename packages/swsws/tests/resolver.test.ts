@@ -46,8 +46,18 @@ describe('RouteResolver', () => {
     });
   });
 
-  it('flags handler routes for a 501 response', () => {
-    expect(resolver.resolve('/api/v1/echo')).toEqual({ kind: 'handler' });
+  it('flags handler routes on method match (non-JS handlers get a 501)', () => {
+    expect(resolver.resolve('/api/v1/echo', 'POST')).toEqual({
+      kind: 'handler',
+      route: { path: '/api/v1/echo', method: 'POST', handler: 'handlers/echo.lua' },
+    });
+  });
+
+  it('reports method-not-allowed when only other methods are declared', () => {
+    expect(resolver.resolve('/api/v1/echo', 'GET')).toEqual({
+      kind: 'method-not-allowed',
+      allowed: ['POST'],
+    });
   });
 
   it('reports unknown paths as not-found', () => {
