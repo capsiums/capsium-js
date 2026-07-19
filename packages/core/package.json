@@ -18,10 +18,12 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "schemas"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && yarn build:schemas",
+    "build:schemas": "node scripts/generate-schemas.ts",
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
