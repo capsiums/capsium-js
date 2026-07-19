@@ -32,6 +32,8 @@ export const metadataSchema = z.object({
   /** Object form: package guid -> semver range. */
   dependencies: z.record(z.string(), z.string()).optional(),
   readOnly: z.boolean().optional(),
+  /** Claimed optional modules (kebab-case identifiers, e.g. "signatures"). */
+  modules: z.array(z.string().regex(KEBAB_CASE, 'module ids must be kebab-case')).optional(),
 });
 export type Metadata = z.infer<typeof metadataSchema>;
 
