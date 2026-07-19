@@ -11,7 +11,7 @@ Capsium packages (`.cap` files) are ZIP archives containing a served
 
 > **Status: 0.2.0 — publish-ready.** All packages in this repo are versioned
 > together and published to npm under the `@capsium` org by the
-> [release workflow](.github/workflows/publish.yml) (see
+> [release workflow](.github/workflows/release.yml) (see
 > [Releasing](#releasing)); inside the workspace they resolve to `src/`
 > directly (the published `exports` map to `dist/` via `publishConfig`).
 
@@ -91,21 +91,34 @@ Node >= 22 is required; CI runs the same steps on Node 22 and 24.
 ## Releasing
 
 Packages publish to npm under the `@capsium` org via
-[`.github/workflows/publish.yml`](.github/workflows/publish.yml): push a
+[`.github/workflows/release.yml`](.github/workflows/release.yml): push a
 `v*` tag and the workflow installs, runs the lint/typecheck/test/build
 gates, then publishes every public package (`@capsium/core`,
-`@capsium/packager`, `@capsium/swsws`, `@capsium/reactor-node`) in
-topological order with `yarn npm publish` (which rewrites `workspace:^`
-ranges to real versions and applies each package's `publishConfig` —
-`access: public` and the `dist/`-based `exports` map).
+`@capsium/packager`, `@capsium/swsws`, `@capsium/reactor-node`,
+`@capsium/reactor-cloudflare`) in topological order — `yarn pack` rewrites
+`workspace:^` ranges to real versions and applies each package's
+`publishConfig`, and the npm CLI publishes the tarballs.
 
-The one manual prerequisite (cannot be automated from this repo):
+Publishing uses **npm trusted publishing (OIDC)** — no long-lived tokens.
+One-time setup (cannot be automated from this repo):
 
-1. Create the `@capsium` npm organization (npmjs.com → New Organization).
-2. Create a granular access token with publish rights on `@capsium` and
-   add it to this repository's secrets as `NPM_TOKEN` (Settings → Secrets
-   and variables → Actions). The workflow exposes it as
-   `NODE_AUTH_TOKEN`/`YARN_NPM_AUTH_TOKEN`.
+1. Create the `@capsium` npm organization (done).
+2. Manually publish each package **once** (trusted publishing can only be
+   configured on existing packages):
 
-Release checklist: bump `version` in all four package.json files (kept in
+   ```bash
+   npm login
+   for pkg in core packager swsws reactor-node reactor-cloudflare; do
+     (cd "packages/${pkg}" \
+       && yarn pack --out package.tgz \
+       && npm publish package.tgz --access public \
+       && rm package.tgz)
+   done
+   ```
+
+3. On npmjs.com, for **each** package: Settings → Trusted publishing →
+   GitHub Actions → org `capsiums`, repo `capsium-js`, workflow filename
+   `release.yml`, allowed action `npm publish`.
+
+Release checklist: bump `version` in all five package.json files (kept in
 lockstep), commit, tag `v<version>`, push the tag.

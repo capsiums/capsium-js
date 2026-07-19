@@ -1,0 +1,71 @@
+name: release
+
+# Release workflow: tag a commit `v*` (e.g. v0.2.1) to publish every public
+# @capsium/* package to npm at the version recorded in its package.json,
+# via npm TRUSTED PUBLISHING (OIDC — no long-lived tokens).
+#
+# One-time manual setup (not automatable from this repo):
+#   1. Create the `@capsium` npm organization (done).
+#   2. Manually publish each package ONCE (see README "Releasing": the
+#      `yarn pack --out package.tgz && npm publish package.tgz --access public`
+#      loop) — trusted publishing can only be configured on existing packages.
+#   3. On npmjs.com, for EACH package: Settings → Trusted publishing →
+#      GitHub Actions → org `capsiums`, repo `capsium-js`, workflow filename
+#      `release.yml`, allowed action `npm publish`.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# id-token: write is required for OIDC trusted publishing.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
+
+      # npm CLI >= 11.5.1 detects the GitHub OIDC environment and publishes
+      # with short-lived tokens (no NODE_AUTH_TOKEN anywhere). `yarn pack`
+      # first so workspace:^ ranges are rewritten to real versions and each
+      # package's publishConfig.exports (dist) applies; the tarball is then
+      # published as-is. Topological order: core → packager → swsws/
+      # reactor-node → reactor-cloudflare.
+      - name: Publish public packages (trusted publishing)
+        run: |
+          set -euo pipefail
+          for pkg in core packager swsws reactor-node reactor-cloudflare; do
+            echo "Publishing @capsium/${pkg}"
+            (cd "packages/${pkg}" \
+              && yarn pack --out package.tgz \
+              && npm publish package.tgz --access public \
+              && rm package.tgz)
+          done
