@@ -1,0 +1,60 @@
+name: publish
+
+# Release workflow: tag a commit `v*` (e.g. v0.2.0) to publish every public
+# @capsium/* package to npm at the version recorded in its package.json.
+#
+# One-time manual setup (not automatable from this repo):
+#   1. Create the `@capsium` npm organization (npmjs.com → New Organization).
+#   2. Create a granular access token with publish rights on @capsium and
+#      add it to this repository's secrets as `NPM_TOKEN`
+#      (Settings → Secrets and variables → Actions).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
+
+      # `yarn npm publish` (not the npm CLI) so workspace:^ ranges are
+      # rewritten to real versions and each package's publishConfig
+      # (access: public, dist-based exports) applies. Topological order:
+      # core → packager → swsws/reactor-node. Yarn maps
+      # YARN_NPM_AUTH_TOKEN to its npmAuthToken config.
+      - name: Publish public packages
+        run: |
+          set -euo pipefail
+          for pkg in core packager swsws reactor-node; do
+            echo "Publishing @capsium/${pkg}"
+            (cd "packages/${pkg}" && yarn npm publish)
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

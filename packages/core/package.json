@@ -2,7 +2,16 @@
   "name": "@capsium/core",
   "version": "0.2.0",
   "description": "Capsium domain models (zod schemas), legacy normalization, manifest/routes auto-generation and integrity logic. Isomorphic (no Node or browser specific APIs).",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/capsiums/capsium-js.git",
+    "directory": "packages/core"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -10,6 +19,7 @@
     }
   },
   "publishConfig": {
+    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",

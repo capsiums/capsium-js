@@ -3,7 +3,19 @@
 The browser Capsium reactor (`@capsium/swsws`): a dependency-light, hand-rolled
 service worker that serves `.cap` packages straight from the zip.
 
-> **Status: 0.2.0 — private/unpublished** (workspace-only package).
+> **Status: 0.2.0** — published to npm under the `@capsium` org (see the
+> repo-root [release docs](../../README.md#releasing)).
+
+## Install
+
+```sh
+npm install @capsium/swsws
+```
+
+The published package ships the reactor building blocks as an ESM library
+(`dist/index.js`: `handleRequest`, `PackageStore`, scope helpers, WebCrypto
+providers) and the self-contained service-worker script as `dist/sw.js`
+(IIFE, all deps bundled — register or copy it as-is).
 
 - Accepts a `.cap` blob from the page via `postMessage`, verifies SHA-256
   checksums against `security.json` (WebCrypto) and rejects tampered packages.

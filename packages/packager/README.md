@@ -4,7 +4,14 @@ Node-side `.cap` tooling for the Capsium runtime: read, write, sign,
 encrypt, verify and extract packages, and resolve composite-package
 dependencies from a store directory.
 
-> **Status: 0.2.0 — private/unpublished** (workspace-only package).
+> **Status: 0.2.0** — published to npm under the `@capsium` org (see the
+> repo-root [release docs](../../README.md#releasing)).
+
+## Install
+
+```sh
+npm install @capsium/packager
+```
 
 All classes are small and dependency-injected (file system, archive,
 hash/signature providers have defaults backed by `node:fs` and
