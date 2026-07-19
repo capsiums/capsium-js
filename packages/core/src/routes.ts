@@ -53,7 +53,13 @@ export type ResourceRoute = z.infer<typeof resourceRouteSchema>;
 export const datasetRouteSchema = z.object({
   path: z.string().regex(/^\/api\/v1\/data\//, 'dataset routes must live under /api/v1/data/'),
   dataset: z.string().min(1),
-  accessControl: z.record(z.string(), z.unknown()).optional(),
+  /** Route-level access control (§4b), enforced after authentication. */
+  accessControl: z
+    .looseObject({
+      roles: z.array(z.string().min(1)).optional(),
+      authenticationRequired: z.boolean().optional(),
+    })
+    .optional(),
 });
 export type DatasetRoute = z.infer<typeof datasetRouteSchema>;
 
