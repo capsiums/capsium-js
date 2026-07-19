@@ -1,0 +1,95 @@
+/**
+ * routes.json model (ARCHITECTURE.md §4).
+ *
+ * Canonical form: top-level optional `index` + `routes` ARRAY of route
+ * objects. Route kinds are discriminated by key (MECE):
+ * - `{path, resource, headers?|headersFile?, visibility?}` — static file.
+ * - `{path, dataset, accessControl?}` — dataset route; path MUST be under
+ *   `/api/v1/data/`.
+ * - `{path, method, handler, ...}` — dynamic handler route: parsers
+ *   accept-and-ignore, reactors respond 501.
+ *
+ * Legacy-read normalization: an object keyed by path is accepted on read and
+ * normalized to the array form. Writers emit only the array form.
+ */
+import { z } from 'zod';
+import { resourceVisibilitySchema } from './manifest.js';
+
+export const DATASET_ROUTE_PREFIX = '/api/v1/data/';
+
+export const resourceRouteSchema = z
+  .object({
+    path: z.string().min(1),
+    resource: z.string().min(1),
+    headers: z.record(z.string(), z.string()).optional(),
+    headersFile: z.string().min(1).optional(),
+    visibility: resourceVisibilitySchema.optional(),
+  })
+  .refine((route) => !(route.headers !== undefined && route.headersFile !== undefined), {
+    message: 'headers and headersFile are mutually exclusive',
+  });
+export type ResourceRoute = z.infer<typeof resourceRouteSchema>;
+
+export const datasetRouteSchema = z.object({
+  path: z.string().regex(/^\/api\/v1\/data\//, 'dataset routes must live under /api/v1/data/'),
+  dataset: z.string().min(1),
+  accessControl: z.record(z.string(), z.unknown()).optional(),
+});
+export type DatasetRoute = z.infer<typeof datasetRouteSchema>;
+
+export const handlerRouteSchema = z.looseObject({
+  path: z.string().min(1),
+  method: z.string().min(1),
+  handler: z.string().min(1),
+});
+export type HandlerRoute = z.infer<typeof handlerRouteSchema>;
+
+export const routeSchema = z.union([resourceRouteSchema, datasetRouteSchema, handlerRouteSchema]);
+export type Route = z.infer<typeof routeSchema>;
+
+export const routesSchema = z.object({
+  index: z.string().min(1).optional(),
+  routes: z.array(routeSchema),
+});
+export type Routes = z.infer<typeof routesSchema>;
+
+export function isResourceRoute(route: Route): route is ResourceRoute {
+  return 'resource' in route;
+}
+
+export function isDatasetRoute(route: Route): route is DatasetRoute {
+  return 'dataset' in route;
+}
+
+export function isHandlerRoute(route: Route): route is HandlerRoute {
+  return 'handler' in route;
+}
+
+const legacyRouteValueSchema = z.union([
+  z.string().min(1).transform((resource) => ({ resource })),
+  z.looseObject({}).transform((value) => value),
+]);
+
+/**
+ * Parse routes.json, accepting the legacy object-keyed-by-path form and
+ * normalizing it to the canonical `{index?, routes: [...]}` array form.
+ */
+export function parseRoutes(input: unknown): Routes {
+  const canonical = routesSchema.safeParse(input);
+  if (canonical.success) {
+    return canonical.data;
+  }
+  if (typeof input === 'object' && input !== null && 'routes' in input) {
+    const { routes: legacyRoutes, ...rest } = input as { routes: unknown } & Record<
+      string,
+      unknown
+    >;
+    if (typeof legacyRoutes === 'object' && legacyRoutes !== null && !Array.isArray(legacyRoutes)) {
+      const normalized = Object.entries(legacyRoutes as Record<string, unknown>).map(
+        ([path, value]) => ({ path, ...legacyRouteValueSchema.parse(value) }),
+      );
+      return routesSchema.parse({ ...rest, routes: normalized });
+    }
+  }
+  throw canonical.error;
+}
