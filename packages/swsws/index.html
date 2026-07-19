@@ -1,5 +1,59 @@
 <!doctype html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<title>swsws — Capsium service-worker reactor</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 40rem; }
+  #log { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; }
+</style>
 </head>
 <body>
+<h1>swsws demo</h1>
+<p>Pick a <code>.cap</code> package. The service worker verifies its SHA-256
+checksums against <code>security.json</code>, stores it, and starts serving
+its routes. After installing, open <a href="/" target="_blank">/</a> or query
+<code>/api/v1/introspect/metadata</code>.</p>
+<input type="file" id="cap" accept=".cap,application/vnd.capsium.package">
+<pre id="log"></pre>
+<script>
+const log = (message) => {
+  document.getElementById('log').textContent += message + '\n';
+};
+
+async function main() {
+  if (!('serviceWorker' in navigator)) {
+    log('service workers are not supported in this browser');
+    return;
+  }
+  const registration = await navigator.serviceWorker.register('sw.js');
+  await navigator.serviceWorker.ready;
+  log('service worker registered');
+
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const data = event.data;
+    if (data && data.type === 'install-result') {
+      log(data.ok
+        ? `installed ${data.name}@${data.version} — open / to browse the package`
+        : `install failed: ${data.error}`);
+    }
+  });
+
+  document.getElementById('cap').addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const worker = registration.active;
+    if (!worker) {
+      log('service worker is not active yet');
+      return;
+    }
+    log(`installing ${file.name}…`);
+    const buffer = await file.arrayBuffer();
+    worker.postMessage({ type: 'install-package', cap: buffer }, [buffer]);
+  });
+}
+
+main().catch((error) => log(String(error)));
+</script>
+</body>
+</html>

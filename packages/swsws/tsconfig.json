@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": ".",
+    "lib": ["ES2022", "WebWorker", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src", "tests", "tsup.config.ts"]
+}

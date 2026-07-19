@@ -1,38 +1,9 @@
 {
-  "include": ["*.mts", "*.d.ts"],
-  "compilerOptions": {
-    "target": "es2020",
-    "module": "node16",
-
-    "lib": ["es2022", "dom"],
-
-    "resolveJsonModule": true,
-
-    "strict": true,
-    "noUnusedLocals": true,
-    "noFallthroughCasesInSwitch": true,
-    "verbatimModuleSyntax": true,
-    "noImplicitReturns": true,
-    "noImplicitAny": true,
-    "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true,
-
-    "allowImportingTsExtensions": true, // XXX
-    "noEmit": true, // XXX
-
-    "isolatedModules": true,
-    "esModuleInterop": true,
-
-    "sourceMap": true,
-    "inlineSources": true,
-
-    "allowSyntheticDefaultImports": true,
-    "experimentalDecorators": true,
-    "noUncheckedIndexedAccess": true,
-
-    "newLine": "lf",
-
-    "declaration": true,
-    "jsx": "react"
-  }
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/packager" },
+    { "path": "packages/swsws" }
+  ]
 }

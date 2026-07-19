@@ -1,23 +1,17 @@
 {
-  "name": "swsws",
-  "description": "Service worker static website server",
+  "name": "@capsium/swsws",
+  "version": "0.1.0",
   "private": true,
-  "packageManager": "yarn@4.3.1",
+  "description": "Service worker static website server: browser Capsium reactor serving .cap packages per routes.json.",
+  "type": "module",
   "scripts": {
-    "compile": "tsc --outdir compiled; tsc --noEmit --module nodenext --skipLibCheck build.mts",
-    "clean": "rm -rf dist compiled build.mjs dist.mjs build-site-builder.mjs build-site.mjs",
-    "build-self-builder": "yarn esbuild build.mts --packages=external --platform=node --target=node18 --minify=false --bundle --format=esm --outfile=build.mjs",
-    "build-self": "yarn node build.mjs",
-    "clean-build": "yarn clean && yarn compile; yarn build",
-    "build": "yarn build-self-builder && yarn build-self"
-  },
-  "devDependencies": {
-    "esbuild": "^0.23.0",
-    "typescript": "^5.5.4"
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "workbox-routing": "^7.1.0",
-    "workbox-strategies": "^7.1.0",
-    "workbox-window": "^7.1.0"
+    "@capsium/core": "workspace:^",
+    "fflate": "^0.8.3"
   }
 }
