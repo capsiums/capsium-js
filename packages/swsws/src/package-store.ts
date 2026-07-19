@@ -38,6 +38,11 @@ export interface KeyValueBlobCache {
 }
 
 const CAP_KEY = '/capsium/current.cap';
+const DEPS_KEY = '/capsium/deps.index.json';
+
+function depKey(index: number): string {
+  return `/capsium/deps/${index}.cap`;
+}
 
 /** KeyValueBlobCache backed by the Cache API. */
 export class CacheApiBlobCache implements KeyValueBlobCache {
@@ -65,6 +70,11 @@ export interface InstalledPackage {
   /** SHA-256 of the .cap blob (§7 content-hashes). */
   readonly contentHash: string;
   readonly validity: IntegrityReport;
+  /**
+   * §4a composite view: installed dependency packages keyed by dependency
+   * guid (supplied explicitly, e.g. via the page's .cap picker).
+   */
+  readonly dependencies: ReadonlyMap<string, InstalledPackage>;
 }
 
 function unpackCap(capBytes: Uint8Array): Map<string, Uint8Array> {
@@ -91,15 +101,28 @@ export class PackageStore {
   }
 
   /**
-   * Verify and install a .cap blob. Throws PackageIntegrityError when
-   * security.json checksums do not match (§6: reactors MUST reject).
+   * Verify and install a .cap blob, with its dependency packages supplied
+   * explicitly (§4a composite packages — the browser reactor has no store
+   * directory, so dependents are picked alongside the main package).
+   * Throws PackageIntegrityError when security.json checksums do not match
+   * (§6: reactors MUST reject).
    */
-  async install(capBytes: Uint8Array): Promise<InstalledPackage> {
-    const installed = await this.verify(capBytes);
+  async install(
+    capBytes: Uint8Array,
+    dependencies: ReadonlyMap<string, Uint8Array> = new Map(),
+  ): Promise<InstalledPackage> {
+    const installed = await this.verifyComposite(capBytes, dependencies);
     if (!installed.validity.valid) {
       throw new PackageIntegrityError(installed.validity.issues);
     }
     await this.blobs.put(CAP_KEY, capBytes);
+    const guids = [...dependencies.keys()];
+    await this.blobs.put(DEPS_KEY, new TextEncoder().encode(JSON.stringify(guids)));
+    let index = 0;
+    for (const depBytes of dependencies.values()) {
+      await this.blobs.put(depKey(index), depBytes);
+      index += 1;
+    }
     this.installed = installed;
     return installed;
   }
@@ -110,7 +133,18 @@ export class PackageStore {
     if (capBytes === undefined) {
       return undefined;
     }
-    const installed = await this.verify(capBytes);
+    const dependencies = new Map<string, Uint8Array>();
+    const indexBytes = await this.blobs.get(DEPS_KEY);
+    if (indexBytes !== undefined) {
+      const guids = JSON.parse(new TextDecoder().decode(indexBytes)) as string[];
+      for (const [index, guid] of guids.entries()) {
+        const depBytes = await this.blobs.get(depKey(index));
+        if (depBytes !== undefined) {
+          dependencies.set(guid, depBytes);
+        }
+      }
+    }
+    const installed = await this.verifyComposite(capBytes, dependencies);
     if (!installed.validity.valid) {
       await this.blobs.delete(CAP_KEY);
       throw new PackageIntegrityError(installed.validity.issues);
@@ -122,6 +156,26 @@ export class PackageStore {
   async clear(): Promise<void> {
     this.installed = undefined;
     await this.blobs.delete(CAP_KEY);
+    await this.blobs.delete(DEPS_KEY);
+  }
+
+  private async verifyComposite(
+    capBytes: Uint8Array,
+    dependencies: ReadonlyMap<string, Uint8Array>,
+  ): Promise<InstalledPackage> {
+    const installed = await this.verify(capBytes);
+    if (dependencies.size === 0) {
+      return installed;
+    }
+    const resolved = new Map<string, InstalledPackage>();
+    for (const [guid, depBytes] of dependencies) {
+      const dependency = await this.verify(depBytes);
+      if (!dependency.validity.valid) {
+        throw new PackageIntegrityError(dependency.validity.issues);
+      }
+      resolved.set(guid, dependency);
+    }
+    return { ...installed, dependencies: resolved };
   }
 
   private async verify(capBytes: Uint8Array): Promise<InstalledPackage> {
@@ -133,7 +187,7 @@ export class PackageStore {
       await this.verifySignature(model);
     }
     const contentHash = await this.hashProvider.digestHex(capBytes);
-    return { model, contentHash, validity };
+    return { model, contentHash, validity, dependencies: new Map() };
   }
 
   /** §6a gate: signed packages install only when the signature verifies. */

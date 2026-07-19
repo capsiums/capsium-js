@@ -11,6 +11,8 @@ export * from './introspection.js';
 export * from './hash-provider.js';
 export * from './checksums.js';
 export * from './mime.js';
+export * from './semver.js';
+export * from './composite.js';
 export * from './generate/manifest.js';
 export * from './generate/routes.js';
 export * from './package.js';

@@ -64,11 +64,15 @@ function messageOf(error: unknown): string {
 
 /**
  * Executes JS handler routes against package content. Imported modules are
- * cached per handler path (ES module semantics) for the executor's
- * lifetime — one executor per installed package model.
+ * cached per (file map, handler path) pair (ES module semantics) for the
+ * executor's lifetime — one executor per installed package model, with
+ * dependency file maps cached separately.
  */
 export class HandlerExecutor {
-  private readonly modules = new Map<string, Promise<Record<string, unknown>>>();
+  private readonly modules = new WeakMap<
+    ReadonlyMap<string, Uint8Array>,
+    Map<string, Promise<Record<string, unknown>>>
+  >();
 
   constructor(private readonly importSource: SourceImporter = importHandlerSource) {}
 
@@ -84,7 +88,7 @@ export class HandlerExecutor {
     }
     let module: Record<string, unknown>;
     try {
-      module = await this.load(route.handler, decoder.decode(sourceBytes));
+      module = await this.load(files, route.handler, decoder.decode(sourceBytes));
     } catch (error) {
       return textResponse(
         `failed to import handler module ${route.handler}: ${messageOf(error)}`,
@@ -110,11 +114,20 @@ export class HandlerExecutor {
     return result;
   }
 
-  private load(path: string, source: string): Promise<Record<string, unknown>> {
-    let pending = this.modules.get(path);
+  private load(
+    files: ReadonlyMap<string, Uint8Array>,
+    path: string,
+    source: string,
+  ): Promise<Record<string, unknown>> {
+    let forFiles = this.modules.get(files);
+    if (forFiles === undefined) {
+      forFiles = new Map();
+      this.modules.set(files, forFiles);
+    }
+    let pending = forFiles.get(path);
     if (pending === undefined) {
       pending = this.importSource(source, path);
-      this.modules.set(path, pending);
+      forFiles.set(path, pending);
     }
     return pending;
   }

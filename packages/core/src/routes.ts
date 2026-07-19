@@ -17,6 +17,25 @@ import { resourceVisibilitySchema } from './manifest.js';
 
 export const DATASET_ROUTE_PREFIX = '/api/v1/data/';
 
+/** Route inheritance processing attributes (05x-routing §Route Inheritance, §4a). */
+export const responseRewriteSchema = z.object({
+  /** Replace the response body outright. */
+  body: z.string().optional(),
+  /** Override response headers (wins over the served response's own). */
+  headers: z.record(z.string(), z.string()).optional(),
+});
+export type ResponseRewrite = z.infer<typeof responseRewriteSchema>;
+
+const routeInheritanceAttributes = {
+  /** Effective public path the route is served at (defaults to `path`). */
+  remap: z.string().min(1).optional(),
+  responseRewrite: responseRewriteSchema.optional(),
+  /** Added to the response only when not already present. */
+  responseHeaders: z.record(z.string(), z.string()).optional(),
+  /** Merged into the request before forwarding to a handler (handler routes). */
+  requestHeaders: z.record(z.string(), z.string()).optional(),
+} as const;
+
 export const resourceRouteSchema = z
   .object({
     path: z.string().min(1),
@@ -24,6 +43,7 @@ export const resourceRouteSchema = z
     headers: z.record(z.string(), z.string()).optional(),
     headersFile: z.string().min(1).optional(),
     visibility: resourceVisibilitySchema.optional(),
+    ...routeInheritanceAttributes,
   })
   .refine((route) => !(route.headers !== undefined && route.headersFile !== undefined), {
     message: 'headers and headersFile are mutually exclusive',
@@ -41,6 +61,8 @@ export const handlerRouteSchema = z.looseObject({
   path: z.string().min(1),
   method: z.string().min(1),
   handler: z.string().min(1),
+  visibility: resourceVisibilitySchema.optional(),
+  ...routeInheritanceAttributes,
 });
 export type HandlerRoute = z.infer<typeof handlerRouteSchema>;
 
@@ -73,6 +95,11 @@ export function isHandlerRoute(route: Route): route is HandlerRoute {
  */
 export function isJavaScriptHandlerPath(path: string): boolean {
   return /\.m?js$/i.test(path);
+}
+
+/** Effective public path of a route: `remap` when declared, else `path`. */
+export function effectiveRoutePath(route: { path: string; remap?: string | undefined }): string {
+  return route.remap ?? route.path;
 }
 
 const legacyRouteValueSchema = z.union([
