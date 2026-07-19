@@ -4,6 +4,7 @@ export * from './manifest.js';
 export * from './routes.js';
 export * from './storage.js';
 export * from './security.js';
+export * from './signatures.js';
 export * from './introspection.js';
 export * from './hash-provider.js';
 export * from './checksums.js';

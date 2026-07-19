@@ -1,10 +1,11 @@
 /**
  * security.json model (ARCHITECTURE.md §6) — pack-time integrity data.
  *
- * Checksums cover EVERY file in the package except `security.json` itself.
- * Reactors/loaders MUST verify SHA-256 checksums when security.json is
- * present and REJECT the package on mismatch. Digital signatures are an
- * optional later phase; the shape is parsed but not acted upon.
+ * Checksums cover EVERY file in the package except `security.json` itself
+ * and `signature.sig`. Reactors/loaders MUST verify SHA-256 checksums when
+ * security.json is present and REJECT the package on mismatch. The
+ * digitalSignatures block is acted upon by the signature logic in
+ * `signatures.ts` (§6a).
  */
 import { z } from 'zod';
 

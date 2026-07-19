@@ -2,10 +2,13 @@
  * Checksum computation and verification (ARCHITECTURE.md §6).
  * Isomorphic: works with any injected HashProvider.
  *
- * Checksums cover EVERY file in the package except `security.json` itself.
+ * Checksums cover EVERY file in the package except `security.json` itself
+ * and `signature.sig` — the signature signs the checksum-covered payload
+ * (§6a), so it cannot be part of it (same exclusion as the Ruby gem).
  * Verification reports a typed issue list; reactors reject on any issue.
  */
 import { SECURITY_FILE, type Security } from './security.js';
+import { SIGNATURE_FILE } from './signatures.js';
 import type { HashProvider } from './hash-provider.js';
 
 export type IntegrityIssue =
@@ -25,14 +28,19 @@ function sortedPaths(paths: Iterable<string>): string[] {
   return [...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-/** SHA-256 checksums for every file except `security.json`, keyed by sorted path. */
+/** Files never covered by checksums: security.json itself and the signature. */
+function coveredByChecksums(path: string): boolean {
+  return path !== SECURITY_FILE && path !== SIGNATURE_FILE;
+}
+
+/** SHA-256 checksums for every covered file, keyed by sorted path. */
 export async function computeChecksums(
   files: ReadonlyMap<string, Uint8Array>,
   hashProvider: HashProvider,
 ): Promise<Record<string, string>> {
   const checksums: Record<string, string> = {};
   for (const path of sortedPaths(files.keys())) {
-    if (path === SECURITY_FILE) {
+    if (!coveredByChecksums(path)) {
       continue;
     }
     const bytes = files.get(path);
@@ -44,7 +52,7 @@ export async function computeChecksums(
   return checksums;
 }
 
-/** Build a security.json model covering every file except `security.json`. */
+/** Build a security.json model covering every file except the excluded ones. */
 export async function buildSecurity(
   files: ReadonlyMap<string, Uint8Array>,
   hashProvider: HashProvider,
@@ -63,9 +71,9 @@ export async function buildSecurity(
 /**
  * Recompute checksums of `files` and compare against `security`.
  * Files present on disk but absent from the checksum list (other than
- * `security.json`) are reported as `uncovered-file`. A package without
- * security.json cannot be verified and is reported invalid with a
- * `missing-security-file` issue.
+ * `security.json` and `signature.sig`) are reported as `uncovered-file`. A
+ * package without security.json cannot be verified and is reported invalid
+ * with a `missing-security-file` issue.
  */
 export async function verifyIntegrity(
   files: ReadonlyMap<string, Uint8Array>,
@@ -99,7 +107,7 @@ export async function verifyIntegrity(
       }
     }
     for (const path of sortedPaths(files.keys())) {
-      if (path !== SECURITY_FILE && !(path in checksums)) {
+      if (coveredByChecksums(path) && !(path in checksums)) {
         issues.push({ kind: 'uncovered-file', path });
       }
     }

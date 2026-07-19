@@ -7,8 +7,14 @@
  * - Answers the §7 introspection endpoints under /api/v1/introspect/.
  */
 /// <reference lib="webworker" />
-import { CacheApiBlobCache, PackageIntegrityError, PackageStore } from './package-store.js';
+import {
+  CacheApiBlobCache,
+  PackageIntegrityError,
+  PackageSignatureError,
+  PackageStore,
+} from './package-store.js';
 import { WebCryptoHashProvider } from './webcrypto-hash-provider.js';
+import { WebCryptoSignatureProvider } from './webcrypto-signature-provider.js';
 import { handleRequest } from './fetch-handler.js';
 
 declare const self: ServiceWorkerGlobalScope;
@@ -23,7 +29,11 @@ let storePromise: Promise<PackageStore> | undefined;
 function getStore(): Promise<PackageStore> {
   storePromise ??= (async () => {
     const cache = await caches.open(CACHE_NAME);
-    const store = new PackageStore(new CacheApiBlobCache(cache), new WebCryptoHashProvider());
+    const store = new PackageStore(
+      new CacheApiBlobCache(cache),
+      new WebCryptoHashProvider(),
+      new WebCryptoSignatureProvider(),
+    );
     try {
       await store.restore();
     } catch (error) {
@@ -64,7 +74,7 @@ self.addEventListener('message', (event) => {
           type: 'install-result',
           ok: false,
           error:
-            error instanceof PackageIntegrityError
+            error instanceof PackageIntegrityError || error instanceof PackageSignatureError
               ? error.message
               : `install failed: ${String(error)}`,
         });
