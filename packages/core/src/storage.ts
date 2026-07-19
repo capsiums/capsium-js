@@ -16,7 +16,9 @@
  * `layers.ts`.
  */
 import { z } from 'zod';
+import { parse as parseYaml } from 'yaml';
 import { resourceVisibilitySchema } from './manifest.js';
+import { mimeTypeForPath } from './mime.js';
 
 export const schemaFileDatasetSchema = z.object({
   source: z.string().min(1),
@@ -68,6 +70,31 @@ export function isSchemaFileDataset(dataset: Dataset): dataset is SchemaFileData
 
 export function isSqliteDataset(dataset: Dataset): dataset is SqliteDataset {
   return 'databaseFile' in dataset;
+}
+
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
+
+/**
+ * Body and Content-Type for a served schema-file dataset source (§5):
+ * YAML sources are parsed and re-serialized as JSON (as the Ruby reactor
+ * does); every other source serves verbatim with its detected type.
+ */
+export function datasetSourceResponse(
+  sourcePath: string,
+  bytes: Uint8Array,
+): { readonly contentType: string; readonly body: Uint8Array } {
+  if (/\.ya?ml$/i.test(sourcePath)) {
+    const parsed: unknown = parseYaml(textDecoder.decode(bytes));
+    return {
+      contentType: 'application/json',
+      body: textEncoder.encode(JSON.stringify(parsed)),
+    };
+  }
+  return {
+    contentType: mimeTypeForPath(sourcePath) ?? 'application/json',
+    body: bytes,
+  };
 }
 
 const legacyDatasetEntrySchema = z.looseObject({

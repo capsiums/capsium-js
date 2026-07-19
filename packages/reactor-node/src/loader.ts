@@ -13,6 +13,7 @@ import { readFile, stat } from 'node:fs/promises';
 import {
   assertPackageSignature,
   computeChecksums,
+  isEncryptedPackage,
   isPackageSigned,
   verifyIntegrity,
   DependencyResolutionError,
@@ -20,6 +21,7 @@ import {
   type IntegrityReport,
 } from '@capsium/core';
 import {
+  CapArchive,
   NodeHashProvider,
   NodeSignatureProvider,
   PackageReader,
@@ -41,6 +43,10 @@ export interface LoadedPackage {
   readonly validity: IntegrityReport;
   /** §4a composite view: verified dependencies keyed by dependency guid. */
   readonly dependencies: ReadonlyMap<string, LoadedDependency>;
+  /** §6a: the package declares a digital signature. */
+  readonly signed: boolean;
+  /** §6b: the package was loaded from an encrypted .cap (key required). */
+  readonly encrypted: boolean;
 }
 
 export interface LoadPackageOptions {
@@ -127,12 +133,16 @@ export async function loadPackage(
 
   let model: CapsiumPackage;
   let contentHash: string;
+  let encrypted = false;
   if (typeof source === 'string') {
     if ((await stat(source)).isDirectory()) {
       model = await reader.readDirectory(source, readOptions);
       contentHash = await contentHashForFiles(model.files);
     } else {
       const bytes = new Uint8Array(await readFile(source));
+      // §6b detection needs the outer (possibly encrypted) archive layout;
+      // readCapBytes unpacks again and decrypts transparently.
+      encrypted = isEncryptedPackage(new CapArchive().unpack(bytes));
       model = await reader.readCapBytes(bytes, readOptions);
       contentHash = await hashProvider.digestHex(bytes);
     }
@@ -143,5 +153,6 @@ export async function loadPackage(
 
   const validity = await verifyModel(model);
   const dependencies = await loadDependencies(model, options.store);
-  return { model, contentHash, validity, dependencies };
+  const signed = model.security !== undefined && isPackageSigned(model.security);
+  return { model, contentHash, validity, dependencies, signed, encrypted };
 }

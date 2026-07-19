@@ -119,9 +119,9 @@ export function layeredFixtureFiles(): Map<string, Uint8Array> {
         },
       }),
     ],
-    ['base/content/index.html', text(LAYERED_INDEX_HTML)],
-    ['base/content/legacy.html', text('<p>legacy</p>')],
-    ['updates/.capsium-tombstones', json(['content/legacy.html'])],
+    ['base/index.html', text(LAYERED_INDEX_HTML)],
+    ['base/legacy.html', text('<p>legacy</p>')],
+    ['updates/.capsium-tombstones', json(['legacy.html'])],
   ]);
 }
 

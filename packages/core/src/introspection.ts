@@ -37,6 +37,12 @@ export const contentValidityResponseSchema = z.object({
       package: z.string().min(1),
       valid: z.boolean(),
       lastChecked: z.iso.datetime(),
+      /** §6a: the package declares a signature (mirrors the Ruby reactor). */
+      signed: z.boolean().optional(),
+      /** §6b: the package was served from an encrypted .cap. */
+      encrypted: z.boolean().optional(),
+      /** §6a signature verification outcome; present when signed. */
+      signatureValid: z.boolean().optional(),
       reason: z.string().optional(),
     }),
   ),

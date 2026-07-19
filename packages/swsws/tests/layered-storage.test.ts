@@ -61,15 +61,14 @@ function fixtureFiles(tombstone = false): Map<string, Uint8Array> {
     ['metadata.json', json(metadata)],
     ['storage.json', json(storage)],
     ['routes.json', json(routes)],
-    ['base/content/index.html', text('<h1>base index</h1>')],
-    ['base/content/about.html', text('<h1>base about</h1>')],
-    ['base/content/gone.html', text('<h1>gone</h1>')],
-    ['updates/content/about.html', text('<h1>updated about</h1>')],
-    ['base/data/animals.json', json([{ name: 'fox' }])],
-    ['updates/data/animals.json', json([{ name: 'fox' }, { name: 'bear' }])],
+    ['base/index.html', text('<h1>base index</h1>')],
+    ['base/about.html', text('<h1>base about</h1>')],
+    ['base/gone.html', text('<h1>gone</h1>')],
+    ['updates/about.html', text('<h1>updated about</h1>')],
+    ['data/animals.json', json([{ name: 'fox' }])],
   ]);
   if (tombstone) {
-    files.set(`updates/${TOMBSTONES_FILE}`, json(['content/gone.html']));
+    files.set(`updates/${TOMBSTONES_FILE}`, json(['gone.html']));
   }
   return files;
 }
@@ -100,10 +99,10 @@ describe('layered storage serving (§5a)', () => {
     expect(await response.text()).toBe('<h1>updated about</h1>');
   });
 
-  it('dataset sources resolve through the layers', async () => {
+  it('dataset sources are package files and bypass the layers', async () => {
     const response = await get(await storeWith(fixtureFiles()), '/api/v1/data/animals');
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([{ name: 'fox' }, { name: 'bear' }]);
+    expect(await response.json()).toEqual([{ name: 'fox' }]);
   });
 
   it('tombstoned paths answer 404 even though a lower layer has the file', async () => {

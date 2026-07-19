@@ -1,14 +1,18 @@
 /**
  * Composite package helpers (ARCHITECTURE.md §4a): dependency resolution
- * against a package store, `capsium://` dependency resource references and
+ * against a package store, dependency resource references and
  * exported-visibility enforcement. Isomorphic.
  *
- * Dependency resource references look like
- * `capsium://<guid-without-scheme>/<package-relative path>` — e.g. with
- * dependency guid `capsium://example.com/core`, the reference
+ * Dependency resource references are `<dependency-guid>/<package-relative
+ * path>`: any reference containing `://` whose longest matching prefix is
+ * a declared dependency guid addresses that dependency's content — e.g.
+ * with dependency guid `capsium://example.com/core`, the reference
  * `capsium://example.com/core/content/app.js` addresses
- * `content/app.js` of that dependency. When several dependency guids
- * prefix-match, the longest guid wins.
+ * `content/app.js` of that dependency, and with guid
+ * `https://example.com/core` the reference is
+ * `https://example.com/core/content/app.js` (the Ruby reactor matches the
+ * same way). When several dependency guids prefix-match, the longest guid
+ * wins.
  */
 import { CapsiumError } from './errors.js';
 import { resolveLayeredPath } from './layers.js';
@@ -61,26 +65,21 @@ export function planDependencies(
   return plan;
 }
 
-function stripScheme(uri: string): string {
-  const index = uri.indexOf('://');
-  return index === -1 ? uri : uri.slice(index + 3);
-}
-
 export interface DependencyResourceRef {
   readonly guid: string;
   /** Package-relative path inside the dependency (e.g. `content/app.js`). */
   readonly path: string;
 }
 
-/** True when `resource` is a dependency reference (`capsium://...`). */
+/** True when `resource` is a URI-shaped reference (`<guid>/<path>`). */
 export function isDependencyResourceRef(resource: string): boolean {
-  return resource.startsWith(CAPSIUM_SCHEME);
+  return resource.includes('://');
 }
 
 /**
- * Parse a `capsium://` resource reference against the known dependency
- * guids (longest guid prefix wins). Returns null when no dependency guid
- * matches.
+ * Parse a dependency resource reference against the known dependency
+ * guids (longest guid prefix wins). Returns null when the reference is
+ * not URI-shaped or no dependency guid prefix-matches it.
  */
 export function parseDependencyResourceRef(
   resource: string,
@@ -89,13 +88,11 @@ export function parseDependencyResourceRef(
   if (!isDependencyResourceRef(resource)) {
     return null;
   }
-  const rest = resource.slice(CAPSIUM_SCHEME.length);
   let best: DependencyResourceRef | null = null;
   for (const guid of dependencyGuids) {
-    const key = stripScheme(guid);
-    if (rest.startsWith(`${key}/`) && rest.length > key.length + 1) {
-      if (best === null || key.length > stripScheme(best.guid).length) {
-        best = { guid, path: rest.slice(key.length + 1) };
+    if (resource.startsWith(`${guid}/`) && resource.length > guid.length + 1) {
+      if (best === null || guid.length > best.guid.length) {
+        best = { guid, path: resource.slice(guid.length + 1) };
       }
     }
   }

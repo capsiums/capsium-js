@@ -115,7 +115,7 @@ export class StoreDirectory {
 
   private async identityFromMetadata(
     file: string,
-  ): Promise<{ guid: string; name: string; version: string } | undefined> {
+  ): Promise<{ guid: string | undefined; name: string; version: string } | undefined> {
     try {
       const files = this.archive.unpack(await this.fs.readFile(file));
       const metadataBytes = files.get('metadata.json');

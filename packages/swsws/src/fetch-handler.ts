@@ -185,9 +185,10 @@ function introspectionResponse(
 }
 
 /**
- * Apply §4a route inheritance processing to a response: `responseHeaders`
- * are ADDED only when absent, `responseRewrite.headers` override and
- * `responseRewrite.body` replaces the body.
+ * Apply §4a route inheritance processing to a response:
+ * `responseRewrite.headers` override and `responseRewrite.body` replaces
+ * the body, then `responseHeaders` merge over the result (mirroring the
+ * Ruby reactor's inherited_processing).
  */
 function applyResponseProcessing(
   response: Response,
@@ -198,12 +199,10 @@ function applyResponseProcessing(
     return response;
   }
   const headers = new Headers(response.headers);
-  for (const [name, value] of Object.entries(responseHeaders ?? {})) {
-    if (!headers.has(name)) {
-      headers.set(name, value);
-    }
-  }
   for (const [name, value] of Object.entries(responseRewrite?.headers ?? {})) {
+    headers.set(name, value);
+  }
+  for (const [name, value] of Object.entries(responseHeaders ?? {})) {
     headers.set(name, value);
   }
   const body = responseRewrite?.body ?? response.body;

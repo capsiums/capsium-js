@@ -23,12 +23,16 @@ const layeredStorage: Storage = {
   },
 };
 
+// §5a layout: layers mirror the content/ tree (layer `base` serves
+// `base/index.html` as `content/index.html`); the content/ tree itself is
+// always the implicit bottom layer.
 function fixtureFiles(): Map<string, Uint8Array> {
   return new Map([
     ['metadata.json', text('{"name":"x"}')],
-    ['base/content/index.html', text('<h1>base</h1>')],
-    ['base/content/about.html', text('<h1>about base</h1>')],
-    ['updates/content/about.html', text('<h1>about updated</h1>')],
+    ['content/local.txt', text('implicit content layer')],
+    ['base/index.html', text('<h1>base</h1>')],
+    ['base/about.html', text('<h1>about base</h1>')],
+    ['updates/about.html', text('<h1>about updated</h1>')],
   ]);
 }
 
@@ -68,21 +72,24 @@ describe('storage.json layers model (§5a)', () => {
 });
 
 describe('storageLayers / visibleLayers', () => {
-  it('behaves as a single implicit root layer without a layers config', () => {
-    expect(storageLayers(undefined)).toEqual([{ path: '' }]);
-    expect(storageLayers({ storage: { dataSets: {} } })).toEqual([{ path: '' }]);
-  });
-
-  it('keeps declaration order (bottom → top)', () => {
-    expect(storageLayers(layeredStorage).map((layer) => layer.path)).toEqual(['base', 'updates']);
+  it('the implicit content/ layer is always the bottom layer', () => {
+    expect(storageLayers(undefined)).toEqual([{ path: 'content' }]);
+    expect(storageLayers({ storage: { dataSets: {} } })).toEqual([{ path: 'content' }]);
+    expect(storageLayers(layeredStorage).map((layer) => layer.path)).toEqual([
+      'content',
+      'base',
+      'updates',
+    ]);
   });
 
   it('excludes private layers from the dependent view', () => {
     expect(visibleLayers(layeredStorage, 'self').map((layer) => layer.path)).toEqual([
+      'content',
       'base',
       'updates',
     ]);
     expect(visibleLayers(layeredStorage, 'dependent').map((layer) => layer.path)).toEqual([
+      'content',
       'base',
     ]);
   });
@@ -91,15 +98,20 @@ describe('storageLayers / visibleLayers', () => {
 describe('resolveLayeredPath (top → bottom)', () => {
   it('resolves from the only layer that has the file', () => {
     const resolution = resolveLayeredPath(fixtureFiles(), layeredStorage, 'content/index.html');
-    expect(resolution).toMatchObject({ kind: 'found', path: 'base/content/index.html' });
+    expect(resolution).toMatchObject({ kind: 'found', path: 'base/index.html' });
   });
 
   it('first hit from the top wins', () => {
     const resolution = resolveLayeredPath(fixtureFiles(), layeredStorage, 'content/about.html');
-    expect(resolution).toMatchObject({ kind: 'found', path: 'updates/content/about.html' });
+    expect(resolution).toMatchObject({ kind: 'found', path: 'updates/about.html' });
   });
 
-  it('resolves against the implicit root layer without a layers config', () => {
+  it('serves from the implicit content/ layer below the configured layers', () => {
+    const resolution = resolveLayeredPath(fixtureFiles(), layeredStorage, 'content/local.txt');
+    expect(resolution).toMatchObject({ kind: 'found', path: 'content/local.txt' });
+  });
+
+  it('resolves against the implicit content/ layer without a layers config', () => {
     const files = new Map([['content/index.html', text('<h1>root</h1>')]]);
     expect(resolveLayeredPath(files, undefined, 'content/index.html')).toMatchObject({
       kind: 'found',
@@ -116,14 +128,33 @@ describe('resolveLayeredPath (top → bottom)', () => {
   it('does not see private-layer files from the dependent view', () => {
     expect(
       resolveLayeredPath(fixtureFiles(), layeredStorage, 'content/about.html', 'dependent'),
-    ).toMatchObject({ kind: 'found', path: 'base/content/about.html' });
+    ).toMatchObject({ kind: 'found', path: 'base/about.html' });
+  });
+
+  it('paths outside content/ bypass the layers and address package files directly', () => {
+    const files = new Map([['data/animals.json', json([])]]);
+    expect(resolveLayeredPath(files, layeredStorage, 'data/animals.json')).toMatchObject({
+      kind: 'found',
+      path: 'data/animals.json',
+    });
+    expect(resolveLayeredPath(files, layeredStorage, 'data/missing.json')).toEqual({
+      kind: 'not-found',
+    });
+  });
+
+  it('never serves the tombstone marker itself', () => {
+    const files = fixtureFiles();
+    files.set(`updates/${TOMBSTONES_FILE}`, json(['index.html']));
+    expect(
+      resolveLayeredPath(files, layeredStorage, `content/${TOMBSTONES_FILE}`),
+    ).toEqual({ kind: 'not-found' });
   });
 });
 
 describe('tombstones', () => {
   it('tombstoned paths resolve 404 even when a lower layer has the file', () => {
     const files = fixtureFiles();
-    files.set(`updates/${TOMBSTONES_FILE}`, json(['content/index.html']));
+    files.set(`updates/${TOMBSTONES_FILE}`, json(['index.html']));
     expect(resolveLayeredPath(files, layeredStorage, 'content/index.html')).toEqual({
       kind: 'tombstoned',
     });
@@ -132,10 +163,18 @@ describe('tombstones', () => {
   it('a file present above the tombstone layer still wins (first hit)', () => {
     const files = fixtureFiles();
     // base tombstones about.html, but updates (above) re-adds it.
-    files.set(`base/${TOMBSTONES_FILE}`, json(['content/about.html']));
+    files.set(`base/${TOMBSTONES_FILE}`, json(['about.html']));
     expect(resolveLayeredPath(files, layeredStorage, 'content/about.html')).toMatchObject({
       kind: 'found',
-      path: 'updates/content/about.html',
+      path: 'updates/about.html',
+    });
+  });
+
+  it('a tombstone without a file in any layer still reports tombstoned', () => {
+    const files = fixtureFiles();
+    files.set(`updates/${TOMBSTONES_FILE}`, json(['gone.html']));
+    expect(resolveLayeredPath(files, layeredStorage, 'content/gone.html')).toEqual({
+      kind: 'tombstoned',
     });
   });
 
@@ -148,8 +187,8 @@ describe('tombstones', () => {
     });
   });
 
-  it('layerFilePath joins layer dir and merged path (root layer passes through)', () => {
-    expect(layerFilePath({ path: 'base' }, 'content/x.html')).toBe('base/content/x.html');
-    expect(layerFilePath({ path: '' }, 'content/x.html')).toBe('content/x.html');
+  it('layerFilePath strips the content/ prefix when joining a layer', () => {
+    expect(layerFilePath({ path: 'base' }, 'content/x.html')).toBe('base/x.html');
+    expect(layerFilePath({ path: 'content' }, 'content/x.html')).toBe('content/x.html');
   });
 });

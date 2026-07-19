@@ -15,6 +15,7 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "bundled": "./dist/index.js",
       "import": "./src/index.ts"
     }
   },
