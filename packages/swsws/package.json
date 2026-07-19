@@ -1,9 +1,35 @@
 {
   "name": "@capsium/swsws",
   "version": "0.2.0",
-  "private": true,
-  "description": "Service worker static website server: browser Capsium reactor serving .cap packages per routes.json.",
+  "description": "Service worker static website server: browser Capsium reactor serving .cap packages per routes.json (layered storage, composite packages, JS handler routes, §4b auth, §7 introspection).",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/capsiums/capsium-js.git",
+    "directory": "packages/swsws"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
