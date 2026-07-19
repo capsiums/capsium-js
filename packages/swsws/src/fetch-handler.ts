@@ -2,28 +2,47 @@
  * The reactor request pipeline, factored pure-ish for unit tests: given a
  * Request and a package store, produce a Response per routes.json and the
  * §7 introspection API.
+ *
+ * JS handler routes (§4a: `{path, method, handler}`) execute as ES modules
+ * via HandlerExecutor; non-JS handlers (e.g. `.lua`) are answered 501 —
+ * this reactor executes JavaScript only.
  */
 import {
+  isJavaScriptHandlerPath,
   isSchemaFileDataset,
   mimeTypeForPath,
   FALLBACK_MIME_TYPE,
+  type CapsiumPackage,
   type ContentHashesResponse,
   type ContentValidityResponse,
   type IntrospectMetadataResponse,
   type IntrospectRoutesResponse,
 } from '@capsium/core';
 import { matchIntrospection, RouteResolver, type IntrospectionEndpoint } from './resolver.js';
+import { HandlerExecutor, type SourceImporter } from './handler-executor.js';
+import { jsonResponse, textResponse } from './responses.js';
 import type { InstalledPackage, PackageStore } from './package-store.js';
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+/** Options for request handling (mainly test seams). */
+export interface HandleRequestOptions {
+  /**
+   * Module loader override for handler execution (mock in tests). Applies
+   * only the first time an executor is created for a given installed
+   * package model.
+   */
+  readonly importSource?: SourceImporter;
 }
 
-function textResponse(body: string, status: number): Response {
-  return new Response(body, { status, headers: { 'Content-Type': 'text/plain' } });
+/** One executor per installed package model (module cache follows the package). */
+const executors = new WeakMap<CapsiumPackage, HandlerExecutor>();
+
+function executorFor(model: CapsiumPackage, importSource?: SourceImporter): HandlerExecutor {
+  let executor = executors.get(model);
+  if (executor === undefined) {
+    executor = new HandlerExecutor(importSource);
+    executors.set(model, executor);
+  }
+  return executor;
 }
 
 function describeIssues(installed: InstalledPackage): string | undefined {
@@ -105,7 +124,11 @@ function introspectionResponse(
 }
 
 /** Handle one reactor request (fetch event) against the installed package. */
-export async function handleRequest(request: Request, store: PackageStore): Promise<Response> {
+export async function handleRequest(
+  request: Request,
+  store: PackageStore,
+  options: HandleRequestOptions = {},
+): Promise<Response> {
   const { pathname } = new URL(request.url);
 
   const endpoint = matchIntrospection(pathname);
@@ -118,7 +141,7 @@ export async function handleRequest(request: Request, store: PackageStore): Prom
     return textResponse('no Capsium package installed', 404);
   }
 
-  const resolution = new RouteResolver(installed.model.routes).resolve(pathname);
+  const resolution = new RouteResolver(installed.model.routes).resolve(pathname, request.method);
   switch (resolution.kind) {
     case 'resource': {
       const bytes = installed.model.files.get(resolution.route.resource);
@@ -153,8 +176,25 @@ export async function handleRequest(request: Request, store: PackageStore): Prom
         },
       });
     }
-    case 'handler':
-      return textResponse('handler routes are not executed by this reactor', 501);
+    case 'handler': {
+      if (!isJavaScriptHandlerPath(resolution.route.handler)) {
+        // §4a: JS handlers execute ONLY in JS-capable reactors; this
+        // reactor cannot execute non-JS (e.g. Lua) handlers.
+        return textResponse(
+          `handler kind not executable by this reactor: ${resolution.route.handler}`,
+          501,
+        );
+      }
+      return await executorFor(installed.model, options.importSource).execute(
+        resolution.route,
+        request,
+        installed.model.files,
+      );
+    }
+    case 'method-not-allowed':
+      return textResponse(`method ${request.method} not allowed for ${pathname}`, 405, {
+        Allow: resolution.allowed.join(', '),
+      });
     case 'not-found':
       return textResponse(`no route for ${pathname}`, 404);
   }

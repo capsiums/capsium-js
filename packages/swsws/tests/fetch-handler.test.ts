@@ -149,7 +149,7 @@ describe('handleRequest', () => {
     expect(await response.json()).toEqual({ packages: [] });
   });
 
-  it('responds 501 for handler routes', async () => {
+  it('responds 501 for non-JS handler routes', async () => {
     const files = fixtureFiles();
     files.set(
       'routes.json',
@@ -157,7 +157,11 @@ describe('handleRequest', () => {
     );
     const store = new PackageStore(new MemoryBlobCache(), hashProvider);
     await store.install(await packCap(files));
-    const response = await handleRequest(new Request('http://reactor.local/api/v1/echo'), store);
+    const response = await handleRequest(
+      new Request('http://reactor.local/api/v1/echo', { method: 'POST' }),
+      store,
+    );
     expect(response.status).toBe(501);
+    expect(await response.text()).toContain('not executable');
   });
 });
