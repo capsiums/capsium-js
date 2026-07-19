@@ -35,6 +35,7 @@ import {
 import { matchIntrospection, RouteResolver, type IntrospectionEndpoint } from './resolver.js';
 import { HandlerExecutor, type SourceImporter } from './handler-executor.js';
 import { jsonResponse, textResponse } from './responses.js';
+import { stripScopePrefix } from './scope.js';
 import {
   Authenticator,
   type AuthPrincipal,
@@ -58,6 +59,13 @@ export interface HandleRequestOptions {
   readonly sessionTtlSeconds?: number;
   /** Clock override (tests). */
   readonly now?: () => number;
+  /**
+   * Registration scope pathname for non-root mounting (e.g.
+   * '/playground/~serve/'): package routes resolve relative to the prefix,
+   * requests outside it are not served, and absolute redirects the reactor
+   * emits (OAuth2) point back inside it. Default '/' (root scope).
+   */
+  readonly scopePrefix?: string;
 }
 
 /** One executor per installed package model (module cache follows the package). */
@@ -91,6 +99,7 @@ function authenticatorFor(
         ? { sessionTtlSeconds: options.sessionTtlSeconds }
         : {}),
       ...(options.now !== undefined ? { now: options.now } : {}),
+      ...(options.scopePrefix !== undefined ? { scopePrefix: options.scopePrefix } : {}),
     });
     authenticators.set(model, authenticator);
   }
@@ -319,7 +328,12 @@ export async function handleRequest(
   store: PackageStore,
   options: HandleRequestOptions = {},
 ): Promise<Response> {
-  const { pathname } = new URL(request.url);
+  const rawPathname = new URL(request.url).pathname;
+  const pathname = stripScopePrefix(rawPathname, options.scopePrefix ?? '/');
+  if (pathname === null) {
+    // Outside the registration scope — not this reactor's to serve.
+    return textResponse(`no route for ${rawPathname}`, 404);
+  }
 
   const endpoint = matchIntrospection(pathname);
   if (endpoint !== null) {

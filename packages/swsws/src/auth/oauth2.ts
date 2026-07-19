@@ -10,6 +10,7 @@
  */
 import type { OAuth2 } from '@capsium/core';
 import { base64urlDecode, base64urlEncode, type AuthSession } from './session.js';
+import { joinScopePrefix } from '../scope.js';
 
 export interface OAuth2FlowOptions {
   readonly fetchFn?: typeof fetch;
@@ -17,6 +18,12 @@ export interface OAuth2FlowOptions {
   readonly now?: () => number;
   /** Lifetime of a pending authorization (state/verifier), ms. */
   readonly pendingTtlMs?: number;
+  /**
+   * Registration scope pathname for non-root mounting: the redirect_uri
+   * sent to the provider is prefixed with it so the callback lands back
+   * inside the worker's scope. Default '/' (root scope).
+   */
+  readonly scopePrefix?: string;
 }
 
 interface PendingAuthorization {
@@ -37,6 +44,7 @@ export class OAuth2Flow {
   private readonly random: (bytes: number) => Uint8Array;
   private readonly now: () => number;
   private readonly pendingTtl: number;
+  private readonly scopePrefix: string;
 
   constructor(
     private readonly config: OAuth2,
@@ -53,10 +61,19 @@ export class OAuth2Flow {
       });
     this.now = options.now ?? (() => Date.now());
     this.pendingTtl = options.pendingTtlMs ?? DEFAULT_PENDING_TTL;
+    this.scopePrefix = options.scopePrefix ?? '/';
   }
 
   isCallback(pathname: string): boolean {
     return pathname === this.config.redirectPath;
+  }
+
+  /**
+   * The callback URL the provider redirects to — prefixed with the
+   * registration scope so it lands back inside this worker's scope.
+   */
+  private redirectUri(origin: string): string {
+    return `${origin}${joinScopePrefix(this.scopePrefix, this.config.redirectPath)}`;
   }
 
   /** Build the PKCE authorization redirect (302) for an unauthenticated request. */
@@ -67,13 +84,15 @@ export class OAuth2Flow {
     const { origin } = new URL(requestUrl);
     this.pending.set(state, {
       verifier,
+      // Full request pathname (including any scope prefix): the browser
+      // returns here after the callback, back inside the worker's scope.
       returnTo: new URL(requestUrl).pathname,
       expiresAt: this.now() + this.pendingTtl,
     });
     const url = new URL(this.config.authorizationUrl);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('client_id', this.config.clientId);
-    url.searchParams.set('redirect_uri', `${origin}${this.config.redirectPath}`);
+    url.searchParams.set('redirect_uri', this.redirectUri(origin));
     url.searchParams.set('state', state);
     url.searchParams.set('code_challenge', challenge);
     url.searchParams.set('code_challenge_method', 'S256');
@@ -104,7 +123,7 @@ export class OAuth2Flow {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: `${origin}${this.config.redirectPath}`,
+        redirect_uri: this.redirectUri(origin),
         client_id: this.config.clientId,
         code_verifier: pending.verifier,
       }).toString(),
