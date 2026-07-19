@@ -174,16 +174,15 @@ export class ServingPipeline {
   }
 
   /**
-   * Apply §4a route inheritance processing (`responseHeaders` additive,
-   * `responseRewrite` overriding) and attach the final Content-Length.
+   * Apply §4a route inheritance processing — `responseRewrite` overriding,
+   * then `responseHeaders` merged over (mirroring the Ruby reactor's
+   * inherited_processing) — and attach the final Content-Length.
    */
   private respond(bytes: Uint8Array, headers: Headers, route: ResourceRoute): Response {
-    for (const [name, value] of Object.entries(route.responseHeaders ?? {})) {
-      if (!headers.has(name)) {
-        headers.set(name, value);
-      }
-    }
     for (const [name, value] of Object.entries(route.responseRewrite?.headers ?? {})) {
+      headers.set(name, value);
+    }
+    for (const [name, value] of Object.entries(route.responseHeaders ?? {})) {
       headers.set(name, value);
     }
     const body =

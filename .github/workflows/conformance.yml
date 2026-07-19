@@ -1,0 +1,55 @@
+name: conformance
+
+# Runs the Capsium conformance kit (github.com/capsiums/capsium-conformance)
+# against @capsium/reactor-node through harness/conformance_reactor_adapter.rb.
+# The classes in CONFORMANCE_CLASSES are the reactor's claimed conformance
+# classes; keep them in sync with the README badges.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CONFORMANCE_CLASSES: core-reactor,signatures,encryption,layered-storage,composite
+
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: capsium-js
+
+      - uses: actions/checkout@v4
+        with:
+          repository: capsiums/capsium-conformance
+          path: capsium-conformance
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: capsium-js/yarn.lock
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: capsium-conformance
+
+      - name: Install dependencies
+        working-directory: capsium-js
+        run: yarn install --immutable
+
+      - name: Build (the harness serves the dist bundles)
+        working-directory: capsium-js
+        run: yarn build
+
+      - name: Run the conformance kit
+        working-directory: capsium-conformance
+        env:
+          CONFORMANCE_ADAPTER: ${{ github.workspace }}/capsium-js/harness/conformance_reactor_adapter.rb
+        run: bundle exec rspec

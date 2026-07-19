@@ -2,13 +2,18 @@
  * Checksum computation and verification (ARCHITECTURE.md §6).
  * Isomorphic: works with any injected HashProvider.
  *
- * Checksums cover EVERY file in the package except `security.json` itself
- * and `signature.sig` — the signature signs the checksum-covered payload
- * (§6a), so it cannot be part of it (same exclusion as the Ruby gem).
+ * Checksums cover EVERY file in the package except `security.json` itself,
+ * `signature.sig` — the signature signs the checksum-covered payload
+ * (§6a), so it cannot be part of it (same exclusion as the Ruby gem) —
+ * and layer `.capsium-tombstones` markers (§5a): tombstones are mutable
+ * writable-layer runtime state, so the Ruby gem never covers them (its
+ * file glob skips dotfiles) and covering them would make any packaged
+ * layered package unverifiable.
  * Verification reports a typed issue list; reactors reject on any issue.
  */
 import { SECURITY_FILE, type Security } from './security.js';
 import { SIGNATURE_FILE } from './signatures.js';
+import { TOMBSTONES_FILE } from './layers.js';
 import type { HashProvider } from './hash-provider.js';
 
 export type IntegrityIssue =
@@ -28,9 +33,17 @@ function sortedPaths(paths: Iterable<string>): string[] {
   return [...paths].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-/** Files never covered by checksums: security.json itself and the signature. */
+/**
+ * Files never covered by checksums: security.json itself, the signature,
+ * and the §5a tombstone markers (`<layer>/.capsium-tombstones`).
+ */
 function coveredByChecksums(path: string): boolean {
-  return path !== SECURITY_FILE && path !== SIGNATURE_FILE;
+  return (
+    path !== SECURITY_FILE &&
+    path !== SIGNATURE_FILE &&
+    path !== TOMBSTONES_FILE &&
+    !path.endsWith(`/${TOMBSTONES_FILE}`)
+  );
 }
 
 /** SHA-256 checksums for every covered file, keyed by sorted path. */
@@ -71,9 +84,9 @@ export async function buildSecurity(
 /**
  * Recompute checksums of `files` and compare against `security`.
  * Files present on disk but absent from the checksum list (other than
- * `security.json` and `signature.sig`) are reported as `uncovered-file`. A
- * package without security.json cannot be verified and is reported invalid
- * with a `missing-security-file` issue.
+ * `security.json`, `signature.sig` and `.capsium-tombstones` markers) are
+ * reported as `uncovered-file`. A package without security.json cannot be
+ * verified and is reported invalid with a `missing-security-file` issue.
  */
 export async function verifyIntegrity(
   files: ReadonlyMap<string, Uint8Array>,

@@ -2,15 +2,19 @@
  * Layered storage overlay semantics (ARCHITECTURE.md §5a). Isomorphic and
  * pure: resolution runs against the in-memory package file map.
  *
- * - Each layer is a package-relative directory mirroring the package tree
- *   (e.g. layer `base` serves `base/content/index.html` as
- *   `content/index.html`).
- * - The merged view resolves TOP → bottom; first hit wins. A package
- *   without a `layers` config behaves as a single implicit layer (the
- *   package root).
- * - Deletions are recorded as tombstones: a JSON file
- *   `.capsium-tombstones` in a layer listing merged-view paths; tombstoned
- *   paths resolve 404 even if a lower layer has them.
+ * - The content/ tree is always the implicit bottom layer; configured
+ *   `storage.layers` stack on top of it in declaration order (bottom →
+ *   top).
+ * - Each configured layer is a package-relative directory mirroring the
+ *   content/ tree: layer `base` serves `base/index.html` as
+ *   `content/index.html`.
+ * - The merged view resolves TOP → bottom; first hit wins.
+ * - Deletions are recorded as tombstones: a JSON file `.capsium-tombstones`
+ *   in a layer listing content/-relative paths; a tombstoned path resolves
+ *   404 even when a lower layer has it, while a file reappearing in a
+ *   layer above the tombstone is served again.
+ * - Paths outside content/ (e.g. dataset sources) never resolve through
+ *   the layers; they address package files directly.
  * - `visibility: private` layers are not exposed to dependent packages
  *   (see `visibleLayers`).
  */
@@ -20,18 +24,25 @@ import {
   type StorageLayer,
 } from './storage.js';
 
-/** Tombstone file name inside a layer (JSON array of merged-view paths). */
+/** Tombstone file name inside a layer (JSON array of content/-relative paths). */
 export const TOMBSTONES_FILE = '.capsium-tombstones';
 
-/** The implicit layer for packages without a `layers` config: the package root. */
-const IMPLICIT_LAYER: StorageLayer = { path: '' };
+/** Name of the package content directory (the implicit bottom layer). */
+const CONTENT_DIR = 'content';
+
+const CONTENT_PREFIX = `${CONTENT_DIR}/`;
+
+/** The implicit bottom layer every package has: the content/ tree itself. */
+const IMPLICIT_LAYER: StorageLayer = { path: CONTENT_DIR };
 
 const decoder = new TextDecoder();
 
-/** Effective layers bottom → top (the implicit root layer when unconfigured). */
+/**
+ * Effective layers bottom → top: the implicit content/ layer plus the
+ * configured storage.layers in declaration order.
+ */
 export function storageLayers(storage: Storage | undefined): readonly StorageLayer[] {
-  const layers = storage?.storage.layers;
-  return layers !== undefined && layers.length > 0 ? layers : [IMPLICIT_LAYER];
+  return [IMPLICIT_LAYER, ...(storage?.storage.layers ?? [])];
 }
 
 /**
@@ -50,9 +61,17 @@ export function visibleLayers(
   return layers.filter((layer) => layerVisibility(layer) === 'exported');
 }
 
-/** Join a layer directory with a merged-view path. */
+/**
+ * Join a layer directory with a package-relative path: layers mirror the
+ * content/ tree, so the content/ prefix is stripped before joining
+ * (`base` + `content/x.html` → `base/x.html`); the implicit content/
+ * layer maps content paths back onto themselves.
+ */
 export function layerFilePath(layer: StorageLayer, path: string): string {
-  return layer.path === '' ? path : `${layer.path}/${path}`;
+  const relative = path.startsWith(CONTENT_PREFIX)
+    ? path.slice(CONTENT_PREFIX.length)
+    : path;
+  return `${layer.path}/${relative}`;
 }
 
 /** Merged-view paths deleted in `layer` (empty on absent/malformed tombstones). */
@@ -81,10 +100,12 @@ export type LayeredResolution =
   | { readonly kind: 'not-found' };
 
 /**
- * Resolve a merged-view path (e.g. `content/index.html`) against the
+ * Resolve a package-relative path (e.g. `content/index.html`) against the
  * layers visible from `viewpoint`, TOP → bottom; first hit wins. A path
  * tombstoned at or above the first serving layer resolves `tombstoned`
- * (reactors answer 404) even when a lower layer has it.
+ * (reactors answer 404) even when a lower layer has it. Paths outside
+ * content/ bypass the layers and address package files directly; the
+ * tombstone marker itself is never served.
  */
 export function resolveLayeredPath(
   files: ReadonlyMap<string, Uint8Array>,
@@ -92,19 +113,23 @@ export function resolveLayeredPath(
   path: string,
   viewpoint: 'self' | 'dependent' = 'self',
 ): LayeredResolution {
+  if (!path.startsWith(CONTENT_PREFIX)) {
+    return files.has(path)
+      ? { kind: 'found', path, layer: IMPLICIT_LAYER }
+      : { kind: 'not-found' };
+  }
+  const relative = path.slice(CONTENT_PREFIX.length);
+  if (relative === TOMBSTONES_FILE) {
+    return { kind: 'not-found' };
+  }
   const layers = [...visibleLayers(storage, viewpoint)].reverse(); // top → bottom
-  const tombstoned = new Set<string>();
+  let tombstoned = false;
   for (const layer of layers) {
-    for (const deleted of layerTombstones(files, layer)) {
-      tombstoned.add(deleted);
-    }
+    tombstoned ||= layerTombstones(files, layer).has(relative);
     const candidate = layerFilePath(layer, path);
     if (files.has(candidate)) {
-      return { kind: 'found', path: candidate, layer };
-    }
-    if (tombstoned.has(path)) {
-      return { kind: 'tombstoned' };
+      return tombstoned ? { kind: 'tombstoned' } : { kind: 'found', path: candidate, layer };
     }
   }
-  return { kind: 'not-found' };
+  return tombstoned ? { kind: 'tombstoned' } : { kind: 'not-found' };
 }

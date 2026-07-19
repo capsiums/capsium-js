@@ -9,7 +9,8 @@
  * - §4a composite routes (`capsium://<guid>/<path>`) serve from the
  *   installed dependency; only `exported` resources are visible.
  * - Route inheritance processing: `responseRewrite` (body/headers override)
- *   and additive `responseHeaders` are honored at serve time.
+ *   and `responseHeaders` (merged over the served headers) are honored at
+ *   serve time.
  * - Dataset routes serve the dataset source as JSON (SQLite datasets are
  *   out of scope → 501, as in the minimal browser reactor).
  * - Handler routes are not executed by this reactor → 501.
@@ -17,6 +18,7 @@
  * - Unknown paths within the package get a JSON 404.
  */
 import {
+  datasetSourceResponse,
   isDependencyResourceRef,
   isSchemaFileDataset,
   matchIntrospection,
@@ -74,13 +76,6 @@ class HeaderBag {
 
   set(name: string, value: string): void {
     this.values.set(name.toLowerCase(), value);
-  }
-
-  /** §4a responseHeaders semantics: added only when not already present. */
-  setIfAbsent(name: string, value: string): void {
-    if (!this.values.has(name.toLowerCase())) {
-      this.set(name, value);
-    }
   }
 
   toMap(): ReadonlyMap<string, string> {
@@ -170,16 +165,44 @@ export class ServingPipeline {
     if (layered.kind === 'tombstoned') {
       return jsonError(404, `resource deleted: ${route.resource}`);
     }
-    const bytes = layered.kind === 'found' ? model.files.get(layered.path) : undefined;
-    if (bytes === undefined) {
-      return jsonError(404, `resource missing from package: ${route.resource}`);
+    if (layered.kind === 'found') {
+      const bytes = model.files.get(layered.path);
+      if (bytes !== undefined) {
+        const manifestResource = model.manifest.resources[route.resource];
+        const headers = this.baseHeaders(
+          route,
+          manifestResource?.type ?? mimeTypeForPath(route.resource) ?? FALLBACK_MIME_TYPE,
+        );
+        return this.respond(bytes, headers, route);
+      }
     }
-    const manifestResource = model.manifest.resources[route.resource];
-    const headers = this.baseHeaders(
-      route,
-      manifestResource?.type ?? mimeTypeForPath(route.resource) ?? FALLBACK_MIME_TYPE,
-    );
-    return this.respond(bytes, headers, route);
+    // §4a fallthrough: the own layers missed — dependency content acts as
+    // lower read-only layers (exported resources only).
+    return this.serveDependencyFallthrough(route);
+  }
+
+  /**
+   * §4a: a plain content path that missed every own layer resolves against
+   * the installed dependencies in declaration order (dependent viewpoint:
+   * exported visibility only). 404 when no dependency provides it.
+   */
+  private serveDependencyFallthrough(route: ResourceRoute): ReactorResponse {
+    for (const dependency of this.loaded.dependencies.values()) {
+      const resolved = resolveDependencyResource(dependency.model, route.resource);
+      if (resolved.kind !== 'found') {
+        continue;
+      }
+      const bytes = dependency.model.files.get(resolved.path);
+      if (bytes === undefined) {
+        continue;
+      }
+      const headers = this.baseHeaders(
+        route,
+        resolved.type ?? mimeTypeForPath(resolved.path) ?? FALLBACK_MIME_TYPE,
+      );
+      return this.respond(bytes, headers, route);
+    }
+    return jsonError(404, `resource missing from package: ${route.resource}`);
   }
 
   /** Serve a dataset route: the schema-file source as a JSON response. */
@@ -201,13 +224,14 @@ export class ServingPipeline {
     if (bytes === undefined) {
       return jsonError(404, `dataset source missing from package: ${dataset.source}`);
     }
+    const served = datasetSourceResponse(dataset.source, bytes);
     return {
       status: 200,
       headers: new Map([
-        ['content-type', mimeTypeForPath(dataset.source) ?? 'application/json'],
-        ['content-length', String(bytes.length)],
+        ['content-type', served.contentType],
+        ['content-length', String(served.body.length)],
       ]),
-      body: bytes,
+      body: served.body,
     };
   }
 
@@ -223,14 +247,16 @@ export class ServingPipeline {
   }
 
   /**
-   * Apply §4a route inheritance processing (`responseHeaders` additive,
-   * `responseRewrite` overriding) and attach the final Content-Length.
+   * Apply §4a route inheritance processing — `responseRewrite` overrides
+   * body/headers, then `responseHeaders` merge over the result (mirroring
+   * the Ruby reactor's inherited_processing) — and attach the final
+   * Content-Length.
    */
   private respond(bytes: Uint8Array, headers: HeaderBag, route: ResourceRoute): ReactorResponse {
-    for (const [name, value] of Object.entries(route.responseHeaders ?? {})) {
-      headers.setIfAbsent(name, value);
-    }
     for (const [name, value] of Object.entries(route.responseRewrite?.headers ?? {})) {
+      headers.set(name, value);
+    }
+    for (const [name, value] of Object.entries(route.responseHeaders ?? {})) {
       headers.set(name, value);
     }
     const body = route.responseRewrite?.body !== undefined

@@ -449,8 +449,8 @@ describe('composite packages (§4a)', () => {
       const enhanced = await request('/enhanced');
       expect(enhanced.status).toBe(200);
       expect(enhanced.headers.get('x-enhanced')).toBe('1');
-      // responseHeaders are additive only: Content-Type is not overridden.
-      expect(enhanced.headers.get('content-type')).toBe('text/plain');
+      // responseHeaders merge over the served headers: Content-Type is overridden.
+      expect(enhanced.headers.get('content-type')).toBe('text/html');
     });
   });
 
@@ -500,13 +500,12 @@ function layeredFiles(): Map<string, Uint8Array> {
         ],
       }),
     ],
-    ['base/content/index.html', text('<h1>base index</h1>')],
-    ['base/content/about.html', text('<h1>base about</h1>')],
-    ['base/content/gone.html', text('<h1>gone</h1>')],
-    ['updates/content/about.html', text('<h1>updated about</h1>')],
-    ['updates/.capsium-tombstones', json(['content/gone.html'])],
-    ['base/data/animals.json', json([{ name: 'fox' }])],
-    ['updates/data/animals.json', json([{ name: 'fox' }, { name: 'bear' }])],
+    ['base/index.html', text('<h1>base index</h1>')],
+    ['base/about.html', text('<h1>base about</h1>')],
+    ['base/gone.html', text('<h1>gone</h1>')],
+    ['updates/about.html', text('<h1>updated about</h1>')],
+    ['updates/.capsium-tombstones', json(['gone.html'])],
+    ['data/animals.json', json([{ name: 'fox' }])],
   ]);
 }
 
@@ -526,9 +525,10 @@ describe('layered storage (§5a)', () => {
       const index = await request('/');
       expect(index.status).toBe(200);
       expect(index.body).toBe('<h1>base index</h1>');
-      // Datasets resolve through the layers too.
+      // Dataset sources are package files: they bypass the layers (as in
+      // the Ruby reactor, which reads them directly).
       const animals = await request('/api/v1/data/animals');
-      expect(JSON.parse(animals.body)).toEqual([{ name: 'fox' }, { name: 'bear' }]);
+      expect(JSON.parse(animals.body)).toEqual([{ name: 'fox' }]);
     });
   });
 });

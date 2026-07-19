@@ -75,9 +75,10 @@ describe('buildJsonSchemas', () => {
     }
   });
 
-  it('requires the §2 metadata fields and describes all canonical keys', () => {
+  it('requires the §2 metadata identity fields and describes all canonical keys', () => {
     const metadata = schemas.find((schema) => schema.name === 'metadata')?.schema;
-    expect(metadata?.['required']).toEqual(['name', 'version', 'description', 'guid', 'uuid']);
+    // guid/uuid are optional on read (legacy form omits them; format-validated when present).
+    expect(metadata?.['required']).toEqual(['name', 'version', 'description']);
     expect(Object.keys(metadata?.['properties'] as Record<string, unknown>)).toEqual(
       expect.arrayContaining([
         'name',

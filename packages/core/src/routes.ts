@@ -10,7 +10,9 @@
  *   accept-and-ignore, reactors respond 501.
  *
  * Legacy-read normalization: an object keyed by path is accepted on read and
- * normalized to the array form. Writers emit only the array form.
+ * normalized to the array form, and array entries in the legacy
+ * `{path, target: {file|dataset}}` form are normalized to resource/dataset
+ * routes. Writers emit only the canonical array form.
  */
 import { z } from 'zod';
 import { resourceVisibilitySchema } from './manifest.js';
@@ -30,7 +32,7 @@ const routeInheritanceAttributes = {
   /** Effective public path the route is served at (defaults to `path`). */
   remap: z.string().min(1).optional(),
   responseRewrite: responseRewriteSchema.optional(),
-  /** Added to the response only when not already present. */
+  /** Merged over the served response headers (overrides existing values). */
   responseHeaders: z.record(z.string(), z.string()).optional(),
   /** Merged into the request before forwarding to a handler (handler routes). */
   requestHeaders: z.record(z.string(), z.string()).optional(),
@@ -113,9 +115,37 @@ const legacyRouteValueSchema = z.union([
   z.looseObject({}).transform((value) => value),
 ]);
 
+const legacyTargetSchema = z.looseObject({
+  file: z.string().min(1).optional(),
+  dataset: z.string().min(1).optional(),
+});
+
 /**
- * Parse routes.json, accepting the legacy object-keyed-by-path form and
- * normalizing it to the canonical `{index?, routes: [...]}` array form.
+ * Legacy gem array-entry form `{path, target: {file|dataset}}`, normalized
+ * to the canonical resource/dataset route keys (as the Ruby reader does:
+ * `route.merge("resource" => target["file"], "dataset" => target["dataset"])`).
+ * Entries without a `target` object pass through untouched.
+ */
+function normalizeLegacyTarget(entry: unknown): unknown {
+  if (typeof entry !== 'object' || entry === null || !('target' in entry)) {
+    return entry;
+  }
+  const { target, ...rest } = entry as { target: unknown } & Record<string, unknown>;
+  const parsed = legacyTargetSchema.safeParse(target);
+  if (!parsed.success) {
+    return entry;
+  }
+  return {
+    ...rest,
+    ...(parsed.data.file !== undefined ? { resource: parsed.data.file } : {}),
+    ...(parsed.data.dataset !== undefined ? { dataset: parsed.data.dataset } : {}),
+  };
+}
+
+/**
+ * Parse routes.json, accepting the legacy forms: array entries with
+ * `target: {file|dataset}` objects, and the object-keyed-by-path form;
+ * both normalize to the canonical `{index?, routes: [...]}` array form.
  */
 export function parseRoutes(input: unknown): Routes {
   const canonical = routesSchema.safeParse(input);
@@ -127,7 +157,13 @@ export function parseRoutes(input: unknown): Routes {
       string,
       unknown
     >;
-    if (typeof legacyRoutes === 'object' && legacyRoutes !== null && !Array.isArray(legacyRoutes)) {
+    if (Array.isArray(legacyRoutes)) {
+      return routesSchema.parse({
+        ...rest,
+        routes: legacyRoutes.map(normalizeLegacyTarget),
+      });
+    }
+    if (typeof legacyRoutes === 'object' && legacyRoutes !== null) {
       const normalized = Object.entries(legacyRoutes as Record<string, unknown>).map(
         ([path, value]) => ({ path, ...legacyRouteValueSchema.parse(value) }),
       );

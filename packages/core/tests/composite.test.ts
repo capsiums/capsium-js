@@ -164,13 +164,13 @@ describe('resolveDependencyResource (exported visibility)', () => {
       },
       files: new Map([
         ['metadata.json', json(validMetadata)],
-        ['base/content/app.js', text('base')],
-        ['updates/content/app.js', text('private-update')],
+        ['base/app.js', text('base')],
+        ['updates/app.js', text('private-update')],
       ]),
     };
     expect(resolveDependencyResource(layered, 'content/app.js')).toEqual({
       kind: 'found',
-      path: 'base/content/app.js',
+      path: 'base/app.js',
       type: 'text/javascript',
     });
   });

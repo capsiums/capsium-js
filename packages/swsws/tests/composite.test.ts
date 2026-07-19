@@ -185,11 +185,11 @@ describe('composite packages (§4a): route inheritance attributes', () => {
     expect(response.headers.get('X-Rewrite')).toBe('yes');
   });
 
-  it('responseHeaders are additive only (never override)', async () => {
+  it('responseHeaders merge over the served headers', async () => {
     const response = await get(await compositeStore(), '/enhanced');
     expect(response.headers.get('X-Enhanced')).toBe('1');
-    // Content-Type came from the dependency manifest and must not be overridden.
-    expect(response.headers.get('Content-Type')).toBe('text/plain');
+    // Content-Type from the dependency manifest is overridden (Ruby semantics).
+    expect(response.headers.get('Content-Type')).toBe('text/html');
   });
 
   it('inheritance processing also applies to local resources', async () => {

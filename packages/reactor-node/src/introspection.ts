@@ -76,6 +76,11 @@ export function introspectionReport(
             package: model.metadata.name,
             valid: loaded.validity.valid,
             lastChecked: loaded.validity.checkedAt,
+            signed: loaded.signed,
+            encrypted: loaded.encrypted,
+            // §6a verification is fail-fast at load: a served signed
+            // package verified (mirrors the Ruby reactor's report).
+            ...(loaded.signed ? { signatureValid: true } : {}),
             ...(reason !== undefined ? { reason } : {}),
           },
         ],

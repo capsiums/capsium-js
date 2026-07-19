@@ -88,9 +88,9 @@ message); they are verified and persisted like the main package.
   dependency's `private` resource is rejected with a clear 404.
 - Route inheritance attributes are honored at serve time: `remap`
   (the route is served at the remapped path), `responseRewrite`
-  (`body` replacement, `headers` override), additive `responseHeaders`
-  (never override), and `requestHeaders` (supplanted before forwarding
-  to an inherited handler).
+  (`body` replacement, `headers` override), `responseHeaders`
+  (merged over the served headers), and `requestHeaders`
+  (supplanted before forwarding to an inherited handler).
 
 ## Authentication (§4b)
 

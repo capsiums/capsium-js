@@ -10,6 +10,12 @@ import { z } from 'zod';
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// UUID in the 8-4-4-4-12 hex form the spec and the Ruby gem accept
+// (metadata_config.rb UUID_PATTERN); no RFC 9562 version/variant
+// enforcement — z.uuid() would reject spec-valid hand-assigned uuids.
+// The case class is written out (not /i) so generated JSON Schemas agree.
+const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
 // Official semver regex from semver.org (no partial versions).
 const SEMVER =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
@@ -24,8 +30,10 @@ export const metadataSchema = z.object({
   name: z.string().regex(KEBAB_CASE, 'name must be kebab-case'),
   version: z.string().regex(SEMVER, 'version must be valid semver'),
   description: z.string().min(1),
-  guid: z.url(),
-  uuid: z.uuid(),
+  // guid/uuid are optional on read (the Ruby model treats them the same
+  // way — the legacy corpus form omits them); format-validated when present.
+  guid: z.url().optional(),
+  uuid: z.string().regex(UUID, 'uuid must be a valid UUID').optional(),
   author: z.string().min(1).optional(),
   license: z.string().min(1).optional(),
   repository: repositorySchema.optional(),
