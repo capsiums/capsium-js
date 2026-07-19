@@ -1,0 +1,52 @@
+{
+  "name": "@capsium/reactor-cloudflare",
+  "version": "0.2.0",
+  "description": "Cloudflare Workers Capsium reactor: install .cap packages over HTTP (integrity + signature verified, persisted in the Cache API) and serve them per routes.json with the §7 introspection API.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/capsiums/capsium-js.git",
+    "directory": "packages/reactor-cloudflare"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./worker": {
+      "import": "./src/worker.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./worker": {
+        "import": "./dist/worker.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@capsium/core": "workspace:^",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "miniflare": "^4.0.0"
+  }
+}

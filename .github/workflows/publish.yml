@@ -46,12 +46,12 @@ jobs:
       # `yarn npm publish` (not the npm CLI) so workspace:^ ranges are
       # rewritten to real versions and each package's publishConfig
       # (access: public, dist-based exports) applies. Topological order:
-      # core → packager → swsws/reactor-node. Yarn maps
+      # core → packager → swsws/reactor-node → reactor-cloudflare. Yarn maps
       # YARN_NPM_AUTH_TOKEN to its npmAuthToken config.
       - name: Publish public packages
         run: |
           set -euo pipefail
-          for pkg in core packager swsws reactor-node; do
+          for pkg in core packager swsws reactor-node reactor-cloudflare; do
             echo "Publishing @capsium/${pkg}"
             (cd "packages/${pkg}" && yarn npm publish)
           done
