@@ -26,6 +26,13 @@ const PASSTHROUGH_PATHS: ReadonlySet<string> = new Set(['/sw.js', '/index.html']
 
 let storePromise: Promise<PackageStore> | undefined;
 
+/** Deploy-time configuration (§4b: secrets NEVER come from the package). */
+interface DeployConfig {
+  sessionSecret?: string;
+}
+
+let deployConfig: DeployConfig = {};
+
 function getStore(): Promise<PackageStore> {
   storePromise ??= (async () => {
     const cache = await caches.open(CACHE_NAME);
@@ -53,7 +60,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  const data = event.data as { type?: unknown; cap?: unknown } | undefined;
+  const data = event.data as
+    | { type?: unknown; cap?: unknown; config?: unknown }
+    | undefined;
+  if (data?.type === 'deploy-config') {
+    // §4b: deploy-time secrets (e.g. the session cookie signing secret for
+    // OAuth2 packages) arrive from the page — never from the package.
+    const config = data.config as DeployConfig | undefined;
+    deployConfig =
+      config !== undefined && typeof config.sessionSecret === 'string'
+        ? { sessionSecret: config.sessionSecret }
+        : {};
+    event.source?.postMessage({ type: 'deploy-config-result', ok: true });
+    return;
+  }
   if (data?.type !== 'install-package' || !(data.cap instanceof ArrayBuffer)) {
     return;
   }
@@ -94,7 +114,7 @@ self.addEventListener('fetch', (event) => {
       if (store.current === undefined && !url.pathname.startsWith('/api/v1/')) {
         return fetch(event.request);
       }
-      return await handleRequest(event.request, store);
+      return await handleRequest(event.request, store, { deployConfig });
     })(),
   );
 });

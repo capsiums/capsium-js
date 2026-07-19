@@ -13,6 +13,7 @@ import { parseManifest, type Manifest } from './manifest.js';
 import { parseRoutes, type Routes } from './routes.js';
 import { parseStorage, type Storage } from './storage.js';
 import { parseSecurity, type Security } from './security.js';
+import { parseAuthentication, type Authentication, AUTHENTICATION_FILE } from './authentication.js';
 import { buildManifest } from './generate/manifest.js';
 import { buildRoutes } from './generate/routes.js';
 import { FALLBACK_MIME_TYPE, mimeTypeForPath } from './mime.js';
@@ -28,6 +29,7 @@ export interface CapsiumPackage {
   readonly routes: Routes;
   readonly storage?: Storage;
   readonly security?: Security;
+  readonly authentication?: Authentication;
   /** Raw package bytes keyed by package-relative POSIX path. */
   readonly files: ReadonlyMap<string, Uint8Array>;
 }
@@ -97,12 +99,19 @@ export function parsePackage(
   const security =
     securityInput !== undefined ? parseConfig('security.json', securityInput, parseSecurity) : undefined;
 
+  const authenticationInput = readJson(files, AUTHENTICATION_FILE);
+  const authentication =
+    authenticationInput !== undefined
+      ? parseConfig(AUTHENTICATION_FILE, authenticationInput, parseAuthentication)
+      : undefined;
+
   return {
     metadata,
     manifest,
     routes,
     ...(storage !== undefined ? { storage } : {}),
     ...(security !== undefined ? { security } : {}),
+    ...(authentication !== undefined ? { authentication } : {}),
     files,
   };
 }

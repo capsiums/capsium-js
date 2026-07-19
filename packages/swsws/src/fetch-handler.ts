@@ -35,6 +35,11 @@ import {
 import { matchIntrospection, RouteResolver, type IntrospectionEndpoint } from './resolver.js';
 import { HandlerExecutor, type SourceImporter } from './handler-executor.js';
 import { jsonResponse, textResponse } from './responses.js';
+import {
+  Authenticator,
+  type AuthPrincipal,
+  type DeployAuthConfig,
+} from './auth/authenticator.js';
 import type { InstalledPackage, PackageStore } from './package-store.js';
 
 /** Options for request handling (mainly test seams). */
@@ -45,6 +50,14 @@ export interface HandleRequestOptions {
    * package model.
    */
   readonly importSource?: SourceImporter;
+  /** Deploy-time secrets (session cookie signing) — never from the package. */
+  readonly deployConfig?: DeployAuthConfig;
+  /** Fetch override for the OAuth2 token exchange (mock in tests). */
+  readonly fetchFn?: typeof fetch;
+  /** Session cookie lifetime, seconds. */
+  readonly sessionTtlSeconds?: number;
+  /** Clock override (tests). */
+  readonly now?: () => number;
 }
 
 /** One executor per installed package model (module cache follows the package). */
@@ -57,6 +70,31 @@ function executorFor(model: CapsiumPackage, importSource?: SourceImporter): Hand
     executors.set(model, executor);
   }
   return executor;
+}
+
+/** One authenticator per installed package model (holds PKCE pending state). */
+const authenticators = new WeakMap<CapsiumPackage, Authenticator>();
+
+function authenticatorFor(
+  model: CapsiumPackage,
+  options: HandleRequestOptions,
+): Authenticator {
+  let authenticator = authenticators.get(model);
+  if (authenticator === undefined) {
+    if (model.authentication === undefined) {
+      throw new RangeError('no authentication.json in package');
+    }
+    authenticator = new Authenticator(model.authentication, model.files, {
+      ...(options.deployConfig !== undefined ? { deployConfig: options.deployConfig } : {}),
+      ...(options.fetchFn !== undefined ? { fetchFn: options.fetchFn } : {}),
+      ...(options.sessionTtlSeconds !== undefined
+        ? { sessionTtlSeconds: options.sessionTtlSeconds }
+        : {}),
+      ...(options.now !== undefined ? { now: options.now } : {}),
+    });
+    authenticators.set(model, authenticator);
+  }
+  return authenticator;
 }
 
 function describeIssues(installed: InstalledPackage): string | undefined {
@@ -293,12 +331,38 @@ export async function handleRequest(
     return textResponse('no Capsium package installed', 404);
   }
 
+  // §4b: authentication gate (package routes; introspection stays open).
+  let principal: AuthPrincipal | undefined;
+  if (installed.model.authentication !== undefined) {
+    const authenticator = authenticatorFor(installed.model, options);
+    if (authenticator.isOAuth2Callback(pathname)) {
+      return await authenticator.handleCallback(request);
+    }
+    const outcome = await authenticator.gate(request);
+    if (outcome.response !== undefined) {
+      return outcome.response;
+    }
+    principal = outcome.principal;
+  }
+
   const resolution = new RouteResolver(installed.model.routes).resolve(pathname, request.method);
   const { files, storage } = installed.model;
   switch (resolution.kind) {
     case 'resource':
       return serveResourceRoute(installed, resolution.route);
     case 'dataset': {
+      // §4b: route-level accessControl, enforced after authentication.
+      const accessControl = resolution.route.accessControl;
+      if (accessControl?.authenticationRequired === true && principal === undefined) {
+        return textResponse('authentication required', 401);
+      }
+      if (
+        accessControl?.roles !== undefined &&
+        accessControl.roles.length > 0 &&
+        !accessControl.roles.some((role) => principal?.roles.includes(role))
+      ) {
+        return textResponse('forbidden: insufficient role', 403);
+      }
       const dataset = storage?.storage.dataSets[resolution.route.dataset];
       if (dataset === undefined) {
         return textResponse(`unknown dataset: ${resolution.route.dataset}`, 404);

@@ -7,6 +7,7 @@ export * from './layers.js';
 export * from './security.js';
 export * from './signatures.js';
 export * from './encryption.js';
+export * from './authentication.js';
 export * from './introspection.js';
 export * from './hash-provider.js';
 export * from './checksums.js';
