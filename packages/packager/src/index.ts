@@ -7,4 +7,5 @@ export * from './package-reader.js';
 export * from './package-writer.js';
 export * from './package-extractor.js';
 export * from './package-signer.js';
+export * from './package-cipher.js';
 export * from './integrity-verifier.js';

@@ -7,9 +7,14 @@
  * REJECTED with typed errors (UnsignedPackageError never arises here —
  * verification only runs when declared; SignatureError on structural
  * problems, SignatureMismatchError on mismatch).
+ *
+ * Encrypted packages (§6b layout: metadata.json + signature.json +
+ * package.enc) are decrypted transparently when `decryptionKeyPem` is
+ * given; without a key they are rejected with EncryptedPackageError.
  */
 import {
   assertPackageSignature,
+  isEncryptedPackage,
   isPackageSigned,
   parsePackage,
   type CapsiumPackage,
@@ -19,6 +24,7 @@ import {
 import { CapArchive } from './cap-archive.js';
 import { DirectoryPackageSource } from './directory-package-source.js';
 import { NodeFileSystem, type FileSystem } from './file-system.js';
+import { PackageCipher, EncryptedPackageError } from './package-cipher.js';
 import { NodeSignatureProvider } from './signature-provider.js';
 
 export interface ReadPackageOptions extends ParsePackageOptions {
@@ -26,10 +32,13 @@ export interface ReadPackageOptions extends ParsePackageOptions {
   readonly signaturePublicKeyPem?: string;
   /** Skip §6a signature verification (verification runs whenever declared). */
   readonly skipSignatureVerification?: boolean;
+  /** RSA private key PEM used to transparently decrypt §6b encrypted packages. */
+  readonly decryptionKeyPem?: string;
 }
 
 export class PackageReader {
   private readonly source: DirectoryPackageSource;
+  private readonly cipher: PackageCipher;
 
   constructor(
     private readonly fs: FileSystem = new NodeFileSystem(),
@@ -37,6 +46,7 @@ export class PackageReader {
     private readonly signatureProvider: SignatureProvider = new NodeSignatureProvider(),
   ) {
     this.source = new DirectoryPackageSource(fs);
+    this.cipher = new PackageCipher(fs, archive);
   }
 
   async readDirectory(dir: string, options?: ReadPackageOptions): Promise<CapsiumPackage> {
@@ -55,7 +65,16 @@ export class PackageReader {
     files: ReadonlyMap<string, Uint8Array>,
     options?: ReadPackageOptions,
   ): Promise<CapsiumPackage> {
-    const pkg = parsePackage(files, options);
+    let packageFiles = files;
+    if (isEncryptedPackage(packageFiles)) {
+      if (options?.decryptionKeyPem === undefined) {
+        throw new EncryptedPackageError();
+      }
+      packageFiles = this.archive.unpack(
+        await this.cipher.decryptFiles(packageFiles, options.decryptionKeyPem),
+      );
+    }
+    const pkg = parsePackage(packageFiles, options);
     if (
       pkg.security !== undefined &&
       isPackageSigned(pkg.security) &&
