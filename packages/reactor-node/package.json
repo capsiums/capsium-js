@@ -1,6 +1,6 @@
 {
   "name": "@capsium/reactor-node",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework-agnostic Node.js Capsium reactor: serves .cap packages over node:http or as Connect/Express middleware, with layered storage, composite resolution and the §7 introspection API.",
   "license": "MIT",
   "type": "module",

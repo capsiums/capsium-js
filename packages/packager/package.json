@@ -1,6 +1,6 @@
 {
   "name": "@capsium/packager",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node-side .cap tooling: read/validate packages, generate manifest/routes, SHA-256 checksums, write and extract .cap archives, verify integrity.",
   "license": "MIT",
   "type": "module",
