@@ -1,6 +1,6 @@
 {
   "name": "@capsium/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Capsium domain models (zod schemas), legacy normalization, manifest/routes auto-generation and integrity logic. Isomorphic (no Node or browser specific APIs).",
   "license": "MIT",
   "type": "module",

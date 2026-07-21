@@ -1,6 +1,6 @@
 {
   "name": "@capsium/swsws",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Service worker static website server: browser Capsium reactor serving .cap packages per routes.json (layered storage, composite packages, JS handler routes, §4b auth, §7 introspection).",
   "license": "MIT",
   "type": "module",
