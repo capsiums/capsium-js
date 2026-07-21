@@ -4,6 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Evaluate TypeScript majors deliberately (native-compiler 7.x is too fresh)
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # @types/node must track the supported runtime line (Node 22/24)
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
